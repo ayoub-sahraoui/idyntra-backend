@@ -1,0 +1,72 @@
+from pydantic_settings import BaseSettings
+from functools import lru_cache
+from typing import List
+import os
+
+
+class Settings(BaseSettings):
+    """Application settings with environment variable support"""
+
+    # API Info
+    APP_NAME: str = "Enhanced ID Verification API"
+    VERSION: str = "2.0.0"
+    DEBUG: bool = False
+
+    # Server
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
+    WORKERS: int = 4
+
+    # CORS
+    # Accept a list of origins. When provided via environment variable, a
+    # comma-separated string (e.g. "https://a.com,https://b.com") will be
+    # parsed by pydantic-settings into a list.
+    ALLOWED_ORIGINS: List[str] = ["*"]
+
+    # Hardware
+    CPU_ONLY: bool = False
+    CUDA_VISIBLE_DEVICES: str = "0"
+
+    # Verification Thresholds
+    LIVENESS_SCORE_MIN: float = 0.65
+    LIVENESS_SCORE_HIGH: float = 0.80
+    BLUR_THRESHOLD: float = 100.0
+
+    FACE_MATCH_CONFIDENCE_MIN: float = 70.0
+    FACE_MATCH_CONFIDENCE_HIGH: float = 85.0
+    FACE_MATCH_TOLERANCE: float = 0.5
+
+    AUTHENTICITY_SCORE_MIN: float = 60.0
+    AUTHENTICITY_SCORE_HIGH: float = 75.0
+
+    DEEPFAKE_CONFIDENCE_MIN: float = 0.70
+    IMAGE_QUALITY_MIN: float = 60.0
+
+    # Deepfake Detection
+    DEEPFAKE_MODEL_NAME: str = "dima806/deepfake_vs_real_image_detection"
+
+    # OCR Configuration
+    TESSDATA_PREFIX: str = "/usr/share/tesseract-ocr/4/tessdata"
+
+    # Logging
+    LOG_LEVEL: str = "INFO"
+    LOG_FILE: str = "idv_api.log"
+    LOG_MAX_BYTES: int = 5 * 1024 * 1024
+    LOG_BACKUP_COUNT: int = 3
+
+    # Timeouts
+    REQUEST_TIMEOUT: int = 30
+
+    # File Upload
+    MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
+
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
+        extra = "ignore"
+
+
+@lru_cache()
+def get_settings() -> Settings:
+    """Cached settings instance"""
+    return Settings()
