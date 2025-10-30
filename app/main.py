@@ -15,7 +15,6 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
     settings = get_settings()
     logger = setup_logging(
-        log_file=settings.LOG_FILE,
         log_level=settings.LOG_LEVEL,
         max_bytes=settings.LOG_MAX_BYTES,
         backup_count=settings.LOG_BACKUP_COUNT
