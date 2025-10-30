@@ -11,7 +11,7 @@ services:
       - ./logs:/app/logs
       - ./temp:/app/temp
     ports:
-      - "8000:8000"
+      - "8001:8000"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=5)"]
