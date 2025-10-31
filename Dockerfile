@@ -47,10 +47,18 @@ WORKDIR /app
 # Copy ONLY requirements first for better caching
 COPY requirements.txt .
 
-# Install Python packages with pip cache
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Install Python packages
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    # Install build dependencies
+    apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        python3-dev \
+        && \
+    # Install Python packages
+    pip install --no-cache-dir -r requirements.txt && \
+    # Cleanup
+    apt-get purge -y --auto-remove build-essential python3-dev && \
+    rm -rf /var/lib/apt/lists/*
 
 # ============================================================================
 # Stage 3: Model downloader (CACHED SEPARATELY)
@@ -115,14 +123,13 @@ ENV PATH="/home/apiuser/.local/bin:$PATH"
 EXPOSE 8000
 
 # Security scanning during build (with vulnerability report)
-RUN pip install --no-cache-dir pip-audit && \
-    # Run security audit and save report, but don't fail the build
-    (pip-audit --format json > /app/security_audit.json || true) && \
-    # Generate a human-readable report
-    (pip-audit || true) && \
-    pip uninstall -y pip-audit && \
-    # Clean up pip cache
-    rm -rf /root/.cache/pip/*
+RUN pip install --no-cache-dir pip-audit==2.7.0 && \
+    mkdir -p /app/security && \
+    # Run security audit and save reports
+    pip freeze | pip-audit --requirement - --format json 2>/dev/null > /app/security/audit.json || true && \
+    pip freeze | pip-audit --requirement - --format text 2>/dev/null > /app/security/audit.txt || true && \
+    # Cleanup
+    pip uninstall -y pip-audit
 
 # Health checks
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
