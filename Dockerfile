@@ -94,21 +94,32 @@ RUN ls -lh /usr/share/tesseract-ocr/4/tessdata/ && \
     ls -lh /usr/local/lib/python3.10/site-packages/readmrz/language/ && \
     echo "✓ Tesseract data verified in final stage"
 
+# Install cron
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cron \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
 # Create non-root user and set permissions
 RUN useradd -m -u 1000 -s /bin/bash apiuser && \
     chown -R apiuser:apiuser /app /root/.cache && \
-    chmod -R 755 /root/.cache
+    chmod -R 755 /root/.cache && \
+    # Add .local/bin to PATH for pip-installed binaries
+    echo 'export PATH="/home/apiuser/.local/bin:$PATH"' >> /home/apiuser/.bashrc
 
 # Switch to non-root user
 USER apiuser
+ENV PATH="/home/apiuser/.local/bin:$PATH"
 
 # Expose port
 EXPOSE 8000
 
 # Security scanning during build
-RUN pip install safety && \
-    safety check && \
-    pip uninstall -y safety
+RUN pip install --no-cache-dir pip-audit && \
+    pip-audit && \
+    pip uninstall -y pip-audit && \
+    # Clean up pip cache
+    rm -rf /root/.cache/pip/*
 
 # Health checks
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
@@ -145,13 +156,21 @@ ENV PYTHONUNBUFFERED=1 \
     # Set secure temp directory
     TMPDIR=/app/temp
 
-# Set secure workdir permissions
+# Set secure workdir permissions and setup log management
+COPY --chown=apiuser:apiuser <<-"EOF" /app/cleanup_logs.sh
+#!/bin/sh
+find /app/logs -type f -name "*.log" -size +100M -exec rm -f {} \;
+# Ensure log file exists with correct permissions
+touch /app/logs/idv_api.log
+chmod 640 /app/logs/idv_api.log
+EOF
+
 RUN chmod 750 /app && \
-    # Ensure log rotation
-    echo '#!/bin/sh\nfind /app/logs -type f -name "*.log" -size +100M -exec rm -f {} \;' > /app/cleanup_logs.sh && \
     chmod +x /app/cleanup_logs.sh && \
-    # Add log rotation cron job
-    (crontab -l 2>/dev/null; echo "0 0 * * * /app/cleanup_logs.sh") | crontab -
+    # Create log file with correct permissions
+    touch /app/logs/idv_api.log && \
+    chown apiuser:apiuser /app/logs/idv_api.log && \
+    chmod 640 /app/logs/idv_api.log
 
 # Run application with security options
 CMD ["uvicorn", "app.main:app", \
