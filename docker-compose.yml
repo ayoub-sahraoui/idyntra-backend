@@ -25,6 +25,8 @@ services:
           memory: 4G
         reservations:
           memory: 2G
+    networks:
+      - idyntra-network
 
   nginx:
     image: nginx:alpine
@@ -36,6 +38,8 @@ services:
     depends_on:
       - api
     restart: unless-stopped
+    networks:
+      - idyntra-network
 
 volumes:
   model_cache:
@@ -44,3 +48,7 @@ volumes:
     driver: local
   temp:
     driver: local
+
+networks:
+  idyntra-network:
+    driver: bridge

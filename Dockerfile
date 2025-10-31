@@ -5,20 +5,7 @@ FROM python:3.10-slim-bookworm as base
 
 # Install dependencies in the base stage
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
-    libopenblas-dev \
-    cmake \
-    build-essential \
-    curl \
-    tesseract-ocr \
-    tesseract-ocr-eng \
-    libmagic1 \
-    ca-certificates \
+    libgl1-mesa-glx libglib2.0-0 libsm6 libxext6 libxrender-dev libgomp1 libopenblas-dev cmake build-essential curl tesseract-ocr tesseract-ocr-eng libmagic1 ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean \
     && mkdir -p /app/logs /app/temp \
