@@ -3,7 +3,7 @@
 # ============================================================================
 FROM python:3.10-slim-bookworm as base
 
-# Install curl in the base stage
+# Install dependencies in the base stage
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-glx \
     libglib2.0-0 \
@@ -17,8 +17,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     tesseract-ocr \
     tesseract-ocr-eng \
+    libmagic1 \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && apt-get clean \
+    && mkdir -p /app/logs /app/temp \
+    && chmod 770 /app/logs /app/temp
 
 # Download both MRZ and English trained data
 RUN mkdir -p /usr/share/tesseract-ocr/4/tessdata && \
@@ -83,20 +87,17 @@ COPY --from=models /root/.cache /root/.cache
 COPY app/ ./app/
 COPY requirements.txt ./
 
-# Create necessary directories
-RUN mkdir -p /app/logs /app/temp && \
-    chmod 755 /app/logs /app/temp
-
-# Verify traineddata files exist in final stage and copy eng.traineddata to readmrz
+# Verify traineddata files and setup readmrz
 RUN ls -lh /usr/share/tesseract-ocr/4/tessdata/ && \
     mkdir -p /usr/local/lib/python3.10/site-packages/readmrz/language/ && \
     cp /usr/share/tesseract-ocr/4/tessdata/eng.traineddata /usr/local/lib/python3.10/site-packages/readmrz/language/ && \
     ls -lh /usr/local/lib/python3.10/site-packages/readmrz/language/ && \
     echo "✓ Tesseract data verified in final stage"
 
-# Create non-root user for security
+# Create non-root user and set permissions
 RUN useradd -m -u 1000 -s /bin/bash apiuser && \
-    chown -R apiuser:apiuser /app
+    chown -R apiuser:apiuser /app /root/.cache && \
+    chmod -R 755 /root/.cache
 
 # Switch to non-root user
 USER apiuser
@@ -104,17 +105,61 @@ USER apiuser
 # Expose port
 EXPOSE 8000
 
-# Health check
+# Security scanning during build
+RUN pip install safety && \
+    safety check && \
+    pip uninstall -y safety
+
+# Health checks
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/health', timeout=5)" || exit 1
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Additional service checks
+RUN echo '#!/bin/sh\n\
+check_services() {\n\
+  # Check API health\n\
+  curl -sf http://localhost:8000/health > /dev/null || return 1\n\
+  # Check log file permissions\n\
+  test -w /app/logs/idv_api.log || return 1\n\
+  # Check temp directory permissions\n\
+  test -w /app/temp || return 1\n\
+  # Check model cache access\n\
+  test -r /root/.cache || return 1\n\
+  return 0\n\
+}\n\
+check_services' > /app/healthcheck.sh && \
+    chmod +x /app/healthcheck.sh
 
 # Environment variables
-ENV PYTHONUNBUFFERED=1
-ENV CPU_ONLY=1
-# Use the same variable name the app expects (LOG_FILE)
-ENV LOG_FILE=/app/logs/idv_api.log
-ENV LOG_LEVEL=INFO
-ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/4/tessdata
+ENV PYTHONUNBUFFERED=1 \
+    CPU_ONLY=1 \
+    LOG_FILE=/app/logs/idv_api.log \
+    LOG_LEVEL=INFO \
+    TESSDATA_PREFIX=/usr/share/tesseract-ocr/4/tessdata \
+    # Security settings
+    PYTHONHASHSEED=random \
+    # Disable Python bytecode cache
+    PYTHONDONTWRITEBYTECODE=1 \
+    # Set umask for created files
+    UMASK=0027 \
+    # Set secure temp directory
+    TMPDIR=/app/temp
 
-# Run application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--log-level", "info"]
+# Set secure workdir permissions
+RUN chmod 750 /app && \
+    # Ensure log rotation
+    echo '#!/bin/sh\nfind /app/logs -type f -name "*.log" -size +100M -exec rm -f {} \;' > /app/cleanup_logs.sh && \
+    chmod +x /app/cleanup_logs.sh && \
+    # Add log rotation cron job
+    (crontab -l 2>/dev/null; echo "0 0 * * * /app/cleanup_logs.sh") | crontab -
+
+# Run application with security options
+CMD ["uvicorn", "app.main:app", \
+     "--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--workers", "1", \
+     "--log-level", "info", \
+     "--limit-concurrency", "1000", \
+     "--limit-max-requests", "10000", \
+     "--timeout-keep-alive", "5", \
+     "--server-header", "false"]

@@ -2,6 +2,7 @@ from fastapi import APIRouter, File, UploadFile, Depends, HTTPException
 from app.dependencies import get_mrz_extractor, get_logger
 from app.api.v1.schemas import ExtractionResponse
 from app.utils.image_processing import read_uploaded_image
+from app.utils.validation import validate_file, FileMetadata
 from datetime import datetime
 
 router = APIRouter(prefix="/api/v1", tags=["extraction"])

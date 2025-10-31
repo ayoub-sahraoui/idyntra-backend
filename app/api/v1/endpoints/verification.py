@@ -3,8 +3,10 @@ from app.services.verification_service import VerificationService
 from app.dependencies import get_verification_service, get_logger
 from app.api.v1.schemas import VerificationResponse
 from app.utils.image_processing import read_uploaded_image
+from app.utils.validation import validate_files, FileMetadata
 import uuid
 from datetime import datetime
+from typing import List
 
 router = APIRouter(prefix="/api/v1", tags=["verification"])
 
@@ -36,11 +38,18 @@ async def verify_identity(
     logger.info(f"[{verification_id}] Verification request: {id_document.filename}, {selfie.filename}")
 
     try:
-        # Validate file types
-        if not id_document.content_type.startswith('image/'):
-            raise HTTPException(status_code=400, detail="ID document must be an image")
-        if not selfie.content_type.startswith('image/'):
-            raise HTTPException(status_code=400, detail="Selfie must be an image")
+        # Validate files
+        file_metadata: List[FileMetadata] = await validate_files(
+            [id_document, selfie],
+            min_dimensions=(640, 480),  # Minimum resolution for good quality
+            max_dimensions=(4096, 4096)  # Reasonable maximum size
+        )
+        
+        logger.info(
+            f"[{verification_id}] File validation passed: "
+            f"ID ({file_metadata[0].width}x{file_metadata[0].height}), "
+            f"Selfie ({file_metadata[1].width}x{file_metadata[1].height})"
+        )
 
         # Read images
         id_img = await read_uploaded_image(id_document)

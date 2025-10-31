@@ -23,6 +23,12 @@ readmrz
 passport-mrz-extractor
 pytesseract==0.3.10
 
+# Security & Validation
+python-magic==0.4.27
+secure==0.3.0
+filetype==1.2.0
+aiofiles==23.2.1
+
 # Utilities
 psutil==5.9.6
 nest-asyncio==1.5.8

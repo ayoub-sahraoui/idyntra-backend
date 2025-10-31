@@ -17,11 +17,21 @@ class Settings(BaseSettings):
     PORT: int = 8000
     WORKERS: int = 4
 
-    # CORS
-    # Accept a list of origins. When provided via environment variable, a
-    # comma-separated string (e.g. "https://a.com,https://b.com") will be
-    # parsed by pydantic-settings into a list.
+    # Security Settings
+    # CORS and Host Validation
     ALLOWED_ORIGINS: List[str] = ["*"]
+    ALLOWED_HOSTS: List[str] = ["*"]
+    
+    # Rate Limiting
+    MAX_REQUESTS_PER_MINUTE: int = 60
+    
+    # API Authentication
+    VALID_API_KEYS: List[str] = []
+    
+    # Security Headers
+    ENABLE_SECURITY_HEADERS: bool = True
+    CSP_POLICY: str = "default-src 'self'; img-src 'self' data:; script-src 'self'"
+    HSTS_MAX_AGE: int = 31536000  # 1 year in seconds
 
     # Hardware
     CPU_ONLY: bool = False

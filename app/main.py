@@ -1,13 +1,40 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPBasic
+from fastapi.exceptions import RequestValidationError
+from secure import SecureHeaders
 from contextlib import asynccontextmanager
 import time
 import logging
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import get_settings
-from app.utils.logging import setup_logging
+from app.api.v1.auth import check_rate_limit
+from app.utils.logging import (
+    setup_logging,
+    log_request_start,
+    log_request_end,
+    get_request_id
+)
+from app.utils.error_handling import (
+    http_exception_handler,
+    validation_exception_handler,
+    python_exception_handler
+)
 from app.api.v1.endpoints import verification, health, extraction
+
+# Initialize secure headers
+secure_headers = SecureHeaders(
+    csp=True,
+    hsts=True,
+    xfo="DENY",
+    xxp=True,
+    xss=True,
+    cache=True,
+    referrer="strict-origin-when-cross-origin"
+)
 
 
 @asynccontextmanager
@@ -39,6 +66,11 @@ async def lifespan(app: FastAPI):
 
     logger.info("✓ All components initialized")
 
+    # Register exception handlers
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(Exception, python_exception_handler)
+
     yield
 
     logger.info("Shutting down gracefully")
@@ -57,19 +89,87 @@ def create_app() -> FastAPI:
         debug=settings.DEBUG
     )
 
-    # CORS
-    # Coerce ALLOWED_ORIGINS into a list (supports both List[str] and
-    # comma-separated string from environment variables).
-    allowed_origins = settings.ALLOWED_ORIGINS
-    if isinstance(allowed_origins, str):
-        allowed_origins = [o.strip() for o in allowed_origins.split(",") if o.strip()]
+    # Configure request tracking middleware
+    @app.middleware("http")
+    async def request_middleware(request: Request, call_next):
+        # Generate request ID
+        request_id = get_request_id()
+        
+        # Start timing
+        start_time = time.time()
+        
+        # Log request start
+        log_request_start(
+            logger=logger,
+            request_id=request_id,
+            method=request.method,
+            url=str(request.url),
+            client_host=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent")
+        )
+        
+        try:
+            # Process request
+            response = await call_next(request)
+            
+            # Calculate duration
+            duration_ms = (time.time() - start_time) * 1000
+            
+            # Log request completion
+            log_request_end(
+                logger=logger,
+                request_id=request_id,
+                duration_ms=duration_ms,
+                status_code=response.status_code
+            )
+            
+            # Add request ID to response headers
+            response.headers["X-Request-ID"] = request_id
+            return response
+            
+        except Exception as e:
+            # Log error and re-raise
+            logger.exception(
+                "Request failed",
+                extra={
+                    "structured_data": {
+                        "event_type": "request_error",
+                        "request_id": request_id,
+                        "error": str(e)
+                    }
+                }
+            )
+            raise
+    
+    # Configure security headers middleware
+    @app.middleware("http")
+    async def add_secure_headers(request: Request, call_next):
+        response = await call_next(request)
+        secure_headers.fastapi(response)
+        return response
 
+    # Configure CORS with stricter settings
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=allowed_origins,
+        allow_origins=settings.ALLOWED_ORIGINS,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=[
+            "Content-Type",
+            "Authorization",
+            "X-API-Key",
+            "Accept",
+            "Origin",
+            "X-Requested-With"
+        ],
+        expose_headers=["X-Request-ID", "Retry-After"],
+        max_age=3600,
+    )
+
+    # Add trusted host middleware
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=settings.ALLOWED_HOSTS
     )
 
     # Request timing middleware
@@ -91,9 +191,17 @@ def create_app() -> FastAPI:
             content={"detail": "Internal server error", "type": type(exc).__name__}
         )
 
-    # Include routers
-    app.include_router(verification.router)
-    app.include_router(extraction.router)
+    # Include routers with auth and rate limiting
+    app.include_router(
+        verification.router,
+        dependencies=[Depends(check_rate_limit)]
+    )
+    app.include_router(
+        extraction.router,
+        dependencies=[Depends(check_rate_limit)]
+    )
+    
+    # Health check endpoint doesn't need auth
     app.include_router(health.router)
 
     return app
