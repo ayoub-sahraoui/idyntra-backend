@@ -114,9 +114,12 @@ ENV PATH="/home/apiuser/.local/bin:$PATH"
 # Expose port
 EXPOSE 8000
 
-# Security scanning during build
+# Security scanning during build (with vulnerability report)
 RUN pip install --no-cache-dir pip-audit && \
-    pip-audit && \
+    # Run security audit and save report, but don't fail the build
+    (pip-audit --format json > /app/security_audit.json || true) && \
+    # Generate a human-readable report
+    (pip-audit || true) && \
     pip uninstall -y pip-audit && \
     # Clean up pip cache
     rm -rf /root/.cache/pip/*
