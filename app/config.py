@@ -46,19 +46,23 @@ class Settings(BaseSettings):
     CUDA_VISIBLE_DEVICES: str = "0"
 
     # Verification Thresholds
-    LIVENESS_SCORE_MIN: float = 0.65
-    LIVENESS_SCORE_HIGH: float = 0.80
-    BLUR_THRESHOLD: float = 100.0
+    # Liveness Detection
+    LIVENESS_SCORE_MIN: float = 0.55  # Minimum score to pass (55% of checks)
+    LIVENESS_SCORE_HIGH: float = 0.75  # High confidence threshold
+    BLUR_THRESHOLD: float = 80.0  # Lowered for better tolerance (was 100.0)
 
-    FACE_MATCH_CONFIDENCE_MIN: float = 70.0
-    FACE_MATCH_CONFIDENCE_HIGH: float = 85.0
-    FACE_MATCH_TOLERANCE: float = 0.5
+    # Face Matching
+    FACE_MATCH_CONFIDENCE_MIN: float = 65.0  # Minimum confidence to consider a match
+    FACE_MATCH_CONFIDENCE_HIGH: float = 80.0  # High confidence threshold
+    FACE_MATCH_TOLERANCE: float = 0.5  # Distance tolerance (lower = stricter)
 
-    AUTHENTICITY_SCORE_MIN: float = 60.0
-    AUTHENTICITY_SCORE_HIGH: float = 75.0
+    # Document Authenticity
+    AUTHENTICITY_SCORE_MIN: float = 50.0  # Minimum authenticity score
+    AUTHENTICITY_SCORE_HIGH: float = 70.0  # High confidence threshold
 
-    DEEPFAKE_CONFIDENCE_MIN: float = 0.70
-    IMAGE_QUALITY_MIN: float = 60.0
+    # Deepfake Detection
+    DEEPFAKE_CONFIDENCE_MIN: float = 0.65  # Minimum confidence that image is real
+    IMAGE_QUALITY_MIN: float = 50.0  # Minimum image quality score
 
     # Deepfake Detection
     DEEPFAKE_MODEL_NAME: str = "dima806/deepfake_vs_real_image_detection"

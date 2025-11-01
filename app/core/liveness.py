@@ -137,15 +137,28 @@ class LivenessDetector:
             'passed': depth_score > self.config.depth_cue_score_min
         }
 
-    def _check_face_proportions(self, face_location: Tuple, image_shape: Tuple) -> Dict:
+    def _check_face_proportions(self, image: np.ndarray, face_location: Tuple) -> Dict:
         """Validate face size and position"""
         top, right, bottom, left = face_location
         face_width = right - left
         face_height = bottom - top
+        
+        # Calculate aspect ratio
+        aspect_ratio = face_width / face_height if face_height > 0 else 0
 
         size_valid = (
             self.config.face_size_min < face_width < self.config.face_size_max and
             self.config.face_size_min < face_height < self.config.face_size_max
         )
+        
+        # Face should be roughly square (0.7 to 1.3 ratio)
+        proportion_valid = 0.7 <= aspect_ratio <= 1.3
 
-        return {'passed': size_valid}
+        return {
+            'passed': size_valid and proportion_valid,
+            'face_width': face_width,
+            'face_height': face_height,
+            'aspect_ratio': round(aspect_ratio, 2),
+            'size_valid': size_valid,
+            'proportion_valid': proportion_valid
+        }
