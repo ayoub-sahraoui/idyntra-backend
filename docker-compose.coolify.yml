@@ -113,9 +113,20 @@ services:
       - "traefik.http.routers.api-idyntra.tls.certresolver=letsencrypt"
       - "traefik.http.services.api-idyntra.loadbalancer.server.port=8000"
       
-      # Host Header Middleware Fix (resolves gateway timeout)
-      - "traefik.http.middlewares.api-host.headers.customrequestheaders.Host=api.idyntra.space"
-      - "traefik.http.routers.api-idyntra.middlewares=api-host"
+      # Extended Timeouts for ML Processing (Fix 502 errors)
+      - "traefik.http.services.api-idyntra.loadbalancer.server.scheme=http"
+      - "traefik.http.services.api-idyntra.loadbalancer.responsetimeout=180s"
+      - "traefik.http.middlewares.api-idyntra-timeout.buffering.retryExpression=IsNetworkError() && Attempts() < 2"
+      
+      # Request Size Limit (50MB for image uploads)
+      - "traefik.http.middlewares.api-idyntra-limit.buffering.maxRequestBodyBytes=52428800"
+      
+      # Custom Headers Middleware
+      - "traefik.http.middlewares.api-idyntra-headers.headers.customrequestheaders.Host=api.idyntra.space"
+      - "traefik.http.middlewares.api-idyntra-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+      
+      # Apply all middlewares
+      - "traefik.http.routers.api-idyntra.middlewares=api-idyntra-headers,api-idyntra-limit"
     environment:
       # Application
       APP_NAME: ${APP_NAME:-ID Verification API}
@@ -184,7 +195,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 180s  # Increased to 3 minutes for ML model loading
     deploy:
       resources:
         limits:
