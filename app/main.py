@@ -4,7 +4,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBasic
 from fastapi.exceptions import RequestValidationError
-from secure import SecureHeaders
+from secure import Secure
 from contextlib import asynccontextmanager
 import time
 import logging
@@ -25,16 +25,8 @@ from app.utils.error_handling import (
 )
 from app.api.v1.endpoints import verification, health, extraction
 
-# Initialize secure headers
-secure_headers = SecureHeaders(
-    csp=True,
-    hsts=True,
-    xfo="DENY",
-    xxp=True,
-    xss=True,
-    cache=True,
-    referrer="strict-origin-when-cross-origin"
-)
+# Initialize secure headers (secure 0.3.0 API)
+secure_headers = Secure.with_default_headers()
 
 
 @asynccontextmanager
@@ -145,7 +137,8 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def add_secure_headers(request: Request, call_next):
         response = await call_next(request)
-        secure_headers.fastapi(response)
+        # Apply secure headers using secure 0.3.0 API
+        secure_headers.set_headers(response)
         return response
 
     # Configure CORS with stricter settings
