@@ -31,6 +31,7 @@ from app.api.v1.endpoints import verification, health, extraction
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
+    import os
     settings = get_settings()
     logger = setup_logging(
         log_level=settings.LOG_LEVEL,
@@ -38,8 +39,10 @@ async def lifespan(app: FastAPI):
         backup_count=settings.LOG_BACKUP_COUNT
     )
 
+    # Log worker process ID for debugging
+    worker_id = os.getpid()
     logger.info("=" * 70)
-    logger.info(f"🚀 Starting {settings.APP_NAME} v{settings.VERSION}")
+    logger.info(f"🚀 Starting {settings.APP_NAME} v{settings.VERSION} [PID: {worker_id}]")
     logger.info(f"Device mode: {'GPU' if not settings.CPU_ONLY else 'CPU'}")
     logger.info(f"Debug mode: {settings.DEBUG}")
     logger.info("=" * 70)

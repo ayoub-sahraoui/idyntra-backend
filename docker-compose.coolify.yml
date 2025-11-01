@@ -121,7 +121,7 @@ services:
       # Server
       HOST: 0.0.0.0
       PORT: 8000
-      WORKERS: ${WORKERS:-4}
+      WORKERS: ${WORKERS:-2}  # Reduced from 4 to 2 - each worker loads models (4GB+ each)
       
       # Database
       DATABASE_URL: postgresql://${POSTGRES_USER:-idv_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-idverification}
