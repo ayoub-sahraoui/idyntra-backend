@@ -229,7 +229,7 @@ echo "========================================" | tee -a /app/logs/idv_api.log\n
 exec uvicorn app.main:app \\\n\
     --host 0.0.0.0 \\\n\
     --port "${PORT:-8000}" \\\n\
-    --workers "${WORKERS:-4}" \\\n\
+    --workers "${WORKERS:-2}" \\\n\
     --loop uvloop \\\n\
     --log-level info \\\n\
     --proxy-headers \\\n\
@@ -285,7 +285,7 @@ ENV PYTHONUNBUFFERED=1 \
     # Application settings
     CPU_ONLY=1 \
     PORT=8000 \
-    WORKERS=4 \
+    WORKERS=2 \
     # Paths
     LOG_FILE=/app/logs/idv_api.log \
     LOG_LEVEL=INFO \
@@ -303,7 +303,7 @@ EXPOSE 8000
 # Health check with proper timing
 HEALTHCHECK --interval=30s \
             --timeout=10s \
-            --start-period=60s \
+            --start-period=120s \
             --retries=3 \
             CMD ["/app/healthcheck.sh"]
 
