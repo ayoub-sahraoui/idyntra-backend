@@ -25,7 +25,32 @@ async def root():
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health_check(
+async def health_check():
+    """
+    **Basic health check**
+
+    Returns API status without loading ML models.
+    For detailed component status, use /health/detailed
+    """
+
+    settings = get_settings()
+
+    # Basic health check without loading models
+    return HealthResponse(
+        status="healthy",
+        version=settings.VERSION,
+        device="cpu" if settings.CPU_ONLY else "gpu",
+        gpu_available=torch.cuda.is_available() and not settings.CPU_ONLY,
+        timestamp=datetime.utcnow(),
+        components={
+            "api": True,
+            "config": True
+        }
+    )
+
+
+@router.get("/health/detailed", response_model=HealthResponse)
+async def detailed_health_check(
     liveness = Depends(get_liveness_detector),
     face_matcher = Depends(get_face_matcher),
     deepfake = Depends(get_deepfake_detector),
@@ -33,9 +58,10 @@ async def health_check(
     logger = Depends(get_logger)
 ):
     """
-    **Comprehensive health check**
+    **Detailed health check with component verification**
 
-    Verifies all components are loaded and functional.
+    Loads and verifies all ML models are functional.
+    Note: First call may take 2-5 minutes while models download.
     """
 
     settings = get_settings()
