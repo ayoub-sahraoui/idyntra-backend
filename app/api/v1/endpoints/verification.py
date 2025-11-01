@@ -11,28 +11,79 @@ from typing import List
 router = APIRouter(prefix="/api/v1", tags=["verification"])
 
 
-@router.post("/verify", response_model=VerificationResponse)
+@router.post(
+    "/verify",
+    response_model=VerificationResponse,
+    summary="Verify Identity",
+    description="""
+    Perform comprehensive identity verification by comparing a government-issued ID document with a live selfie.
+    
+    ## Security Checks Performed:
+    
+    1. **Liveness Detection** - Verifies the selfie is from a live person (not a photo of a photo, screen, or mask)
+    2. **Face Matching** - Compares the face in the ID document with the selfie face
+    3. **Deepfake Detection** - Ensures the selfie is not AI-generated or manipulated
+    4. **Document Authenticity** - Checks for signs of document tampering or forgery
+    
+    ## Response Status Values:
+    
+    - **approved** (≥75% confidence) - High confidence verification, identity confirmed
+    - **manual_review** (55-74% confidence) - Medium confidence, human review recommended
+    - **rejected** (<55% confidence) - Failed security checks, identity not verified
+    
+    ## Requirements:
+    
+    - **ID Document**: Clear photo of government ID (passport, driver's license, ID card)
+      - Format: JPEG, PNG
+      - Size: 640x480 minimum, 4096x4096 maximum
+      - File size: Max 10MB
+      
+    - **Selfie**: Live photo of the person's face
+      - Format: JPEG, PNG
+      - Size: 640x480 minimum, 4096x4096 maximum
+      - File size: Max 10MB
+      - Should be well-lit, facing camera
+    
+    ## Authentication:
+    
+    Requires `X-API-Key` header with valid API key.
+    
+    ## Response Time:
+    
+    Typical response time: 10-15 seconds
+    """,
+    responses={
+        200: {
+            "description": "Verification completed successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "verification_id": "54ee01af-5059-40da-bf40-e5e9092bdade",
+                        "timestamp": "2025-11-01T19:17:04.473461",
+                        "status": "approved",
+                        "overall_confidence": 78.5,
+                        "message": "✅ Identity verified (confidence: 78.5%)",
+                        "face_match": {"matched": True, "confidence": 85.2, "distance": 0.32, "strategy": "face_recognition"},
+                        "liveness_check": {"is_live": True, "liveness_score": 0.83, "checks_passed": "5/6", "confidence": "high"},
+                        "deepfake_check": {"is_real": True, "confidence": 0.99, "label": "Real", "model_available": True},
+                        "document_authenticity": {"is_authentic": True, "authenticity_score": 100.0, "checks_passed": "1/1"}
+                    }
+                }
+            }
+        },
+        400: {"description": "Invalid request - file validation failed"},
+        403: {"description": "Authentication failed - invalid or missing API key"},
+        500: {"description": "Internal server error - verification process failed"},
+        503: {"description": "Service unavailable - ML models not initialized"}
+    }
+)
 async def verify_identity(
-    id_document: UploadFile = File(..., description="ID card, passport, or driver's license"),
-    selfie: UploadFile = File(..., description="Live selfie photo"),
+    id_document: UploadFile = File(..., description="Government-issued ID document (passport, driver's license, or ID card)"),
+    selfie: UploadFile = File(..., description="Live selfie photo of the person"),
     service: VerificationService = Depends(get_verification_service),
     logger = Depends(get_logger)
 ):
-    """
-    **Verify identity with document and selfie**
-
-    This endpoint performs comprehensive identity verification including:
-    - Liveness detection (anti-spoofing)
-    - Face matching between document and selfie
-    - Document authenticity checks
-    - Deepfake detection
-
-    **Returns:**
-    - `approved`: High confidence verification
-    - `manual_review`: Medium confidence, human review recommended
-    - `rejected`: Failed security checks
-    - `error`: System error occurred
-    """
+    """Verify identity with comprehensive security checks"""
 
     verification_id = str(uuid.uuid4())
     

@@ -57,7 +57,9 @@ class DocumentAuthenticator:
                     noise_levels.append(float(np.std(noise)))
 
             uniformity = 1.0 - min(np.std(noise_levels) / (np.mean(noise_levels) + 1e-6), 1.0)
-            is_tampered = uniformity < 0.7
+            # Adjusted threshold from 0.7 to 0.5 to handle real-world photos better
+            # Photos from cameras/phones naturally have more compression variation
+            is_tampered = uniformity < 0.5
 
             return {
                 'is_tampered': bool(is_tampered),

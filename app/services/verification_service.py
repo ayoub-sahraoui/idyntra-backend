@@ -115,20 +115,21 @@ class VerificationService:
         deepfake_conf = results.get('deepfake_check', {}).get('confidence', 0.5) * 100
 
         # Weighted average (adjusted weights for better balance)
+        # Face matching is most reliable, document auth is least reliable for photos
         overall = (
             liveness_score * 0.20 +      # 20% - Liveness detection
-            face_confidence * 0.40 +     # 40% - Face matching (most important)
-            auth_score * 0.20 +          # 20% - Document authenticity
+            face_confidence * 0.50 +     # 50% - Face matching (most important and reliable)
+            auth_score * 0.10 +          # 10% - Document authenticity (reduced, prone to false positives with photos)
             deepfake_conf * 0.20         # 20% - Deepfake detection
         )
 
         # Decision logic (adjusted thresholds)
-        # >= 80: High confidence, auto-approve
-        # >= 60: Medium confidence, manual review recommended
-        # < 60: Low confidence, reject
-        if overall >= 80:
+        # >= 75: High confidence, auto-approve
+        # >= 55: Medium confidence, manual review recommended
+        # < 55: Low confidence, reject
+        if overall >= 75:
             status = VerificationStatus.APPROVED
-        elif overall >= 60:
+        elif overall >= 55:
             status = VerificationStatus.MANUAL_REVIEW
         else:
             status = VerificationStatus.REJECTED
