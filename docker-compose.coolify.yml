@@ -1,0 +1,219 @@
+# ============================================================================
+# Coolify-Compatible Docker Compose Configuration
+# ============================================================================
+# Optimized for Coolify deployment with dynamic network management
+# No hardcoded subnets - lets Docker/Coolify manage networking
+# ============================================================================
+
+version: '3.9'
+
+# ============================================================================
+# Service Definitions
+# ============================================================================
+services:
+  # --------------------------------------------------------------------------
+  # PostgreSQL Database
+  # --------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-idverification}
+      POSTGRES_USER: ${POSTGRES_USER:-idv_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-idv_user} -d ${POSTGRES_DB:-idverification}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # --------------------------------------------------------------------------
+  # Redis Cache & Session Store
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      --tcp-backlog 511
+      --timeout 300
+      --tcp-keepalive 60
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # --------------------------------------------------------------------------
+  # ID Verification API (Main Application)
+  # --------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+      args:
+        BUILD_DATE: ${BUILD_DATE:-}
+        VCS_REF: ${VCS_REF:-}
+        VERSION: ${VERSION:-2.0.0}
+    image: ${IMAGE_NAME:-idyntra/id-verification-api}:${VERSION:-2.0.0}
+    restart: unless-stopped
+    environment:
+      # Application
+      APP_NAME: ${APP_NAME:-ID Verification API}
+      VERSION: ${VERSION:-2.0.0}
+      DEBUG: ${DEBUG:-false}
+      
+      # Server
+      HOST: 0.0.0.0
+      PORT: 8000
+      WORKERS: ${WORKERS:-4}
+      
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-idv_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-idverification}
+      
+      # Redis
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_CACHE_TTL: ${REDIS_CACHE_TTL:-3600}
+      
+      # Security
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      API_KEY_HASH_SALT: ${API_KEY_HASH_SALT:?API_KEY_HASH_SALT is required}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
+      
+      # Rate Limiting
+      MAX_REQUESTS_PER_MINUTE: ${MAX_REQUESTS_PER_MINUTE:-60}
+      
+      # Hardware
+      CPU_ONLY: ${CPU_ONLY:-1}
+      
+      # Verification Thresholds
+      LIVENESS_SCORE_MIN: ${LIVENESS_SCORE_MIN:-0.65}
+      LIVENESS_SCORE_HIGH: ${LIVENESS_SCORE_HIGH:-0.80}
+      BLUR_THRESHOLD: ${BLUR_THRESHOLD:-100.0}
+      FACE_MATCH_CONFIDENCE_MIN: ${FACE_MATCH_CONFIDENCE_MIN:-70.0}
+      FACE_MATCH_CONFIDENCE_HIGH: ${FACE_MATCH_CONFIDENCE_HIGH:-85.0}
+      FACE_MATCH_TOLERANCE: ${FACE_MATCH_TOLERANCE:-0.5}
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FILE: /app/logs/idv_api.log
+      
+      # Monitoring
+      ENABLE_METRICS: ${ENABLE_METRICS:-true}
+      
+      # Timeouts
+      REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-30}
+      
+      # File Upload
+      MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-10485760}
+    volumes:
+      - model_cache:/root/.cache:rw
+      - api_logs:/app/logs:rw
+      - api_temp:/app/temp:rw
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "/app/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 6G
+        reservations:
+          cpus: '2'
+          memory: 3G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+# ============================================================================
+# Volume Definitions - Simplified for Coolify
+# ============================================================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  model_cache:
+    driver: local
+  api_logs:
+    driver: local
+  api_temp:
+    driver: local
+
+# ============================================================================
+# Network Definitions - Simplified for Coolify
+# ============================================================================
+networks:
+  backend:
+    driver: bridge
+    # Let Docker/Coolify manage IP allocation dynamically
+    # No hardcoded subnets to avoid conflicts
+
+# ============================================================================
+# Coolify Deployment Notes:
+# ============================================================================
+# 1. Coolify manages its own network stack
+# 2. Use Coolify's environment variable management
+# 3. Coolify handles SSL/TLS termination (no need for nginx)
+# 4. Coolify provides built-in monitoring (optional Prometheus/Grafana)
+# 5. Use Coolify's domain routing instead of nginx
+# ============================================================================
