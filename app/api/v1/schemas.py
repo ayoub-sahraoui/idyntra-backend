@@ -4,14 +4,8 @@ from datetime import datetime
 
 
 class LivenessCheckResponse(BaseModel):
-    is_live: bool = Field(..., description="Whether the image is determined to be from a live person")
-    liveness_score: float = Field(..., ge=0.0, le=1.0, description="Liveness score (0-1)")
-    checks_passed: str = Field(..., description="Number of checks passed (e.g., '4/6')")
-    confidence: str = Field(..., description="Confidence level: low, medium, or high")
-    checks: Dict[str, Any] = Field(..., description="Detailed results for each liveness check")
-    
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "is_live": True,
                 "liveness_score": 0.6666666666666666,
@@ -34,16 +28,18 @@ class LivenessCheckResponse(BaseModel):
                 }
             }
         }
+    }
+    
+    is_live: bool = Field(..., description="Whether the image is determined to be from a live person")
+    liveness_score: float = Field(..., ge=0.0, le=1.0, description="Liveness score (0-1)")
+    checks_passed: str = Field(..., description="Number of checks passed (e.g., '4/6')")
+    confidence: str = Field(..., description="Confidence level: low, medium, or high")
+    checks: Dict[str, Any] = Field(..., description="Detailed results for each liveness check")
 
 
 class FaceMatchResponse(BaseModel):
-    matched: bool = Field(..., description="Whether faces match between document and selfie")
-    confidence: float = Field(..., ge=0.0, le=100.0, description="Match confidence percentage (0-100)")
-    distance: float = Field(..., description="Face distance metric (lower = more similar)")
-    strategy: str = Field(..., description="Matching strategy used (e.g., 'face_recognition')")
-    
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "matched": True,
                 "confidence": 60.28588325822444,
@@ -51,16 +47,17 @@ class FaceMatchResponse(BaseModel):
                 "strategy": "face_recognition"
             }
         }
+    }
+    
+    matched: bool = Field(..., description="Whether faces match between document and selfie")
+    confidence: float = Field(..., ge=0.0, le=100.0, description="Match confidence percentage (0-100)")
+    distance: float = Field(..., description="Face distance metric (lower = more similar)")
+    strategy: str = Field(..., description="Matching strategy used (e.g., 'face_recognition')")
 
 
 class DocumentAuthResponse(BaseModel):
-    is_authentic: bool = Field(..., description="Whether the document appears authentic")
-    authenticity_score: float = Field(..., ge=0.0, le=100.0, description="Authenticity score percentage (0-100)")
-    checks_passed: str = Field(..., description="Number of authenticity checks passed (e.g., '1/1')")
-    checks: Dict[str, Any] = Field(..., description="Detailed results for each authenticity check")
-    
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "is_authentic": True,
                 "authenticity_score": 100.0,
@@ -74,18 +71,18 @@ class DocumentAuthResponse(BaseModel):
                 }
             }
         }
+    }
+    
+    is_authentic: bool = Field(..., description="Whether the document appears authentic")
+    authenticity_score: float = Field(..., ge=0.0, le=100.0, description="Authenticity score percentage (0-100)")
+    checks_passed: str = Field(..., description="Number of authenticity checks passed (e.g., '1/1')")
+    checks: Dict[str, Any] = Field(..., description="Detailed results for each authenticity check")
 
 
 class DeepfakeCheckResponse(BaseModel):
-    model_config = {"protected_namespaces": ()}  # Allow 'model_' prefix
-    
-    is_real: bool = Field(..., description="Whether the image is determined to be real (not a deepfake)")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score (0-1)")
-    label: str = Field(..., description="Classification label: 'Real' or 'Fake'")
-    model_available: bool = Field(..., description="Whether the deepfake detection model is loaded")
-    
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "protected_namespaces": (),  # Allow 'model_' prefix
+        "json_schema_extra": {
             "example": {
                 "is_real": True,
                 "confidence": 0.9970235228538513,
@@ -93,6 +90,12 @@ class DeepfakeCheckResponse(BaseModel):
                 "model_available": True
             }
         }
+    }
+    
+    is_real: bool = Field(..., description="Whether the image is determined to be real (not a deepfake)")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score (0-1)")
+    label: str = Field(..., description="Classification label: 'Real' or 'Fake'")
+    model_available: bool = Field(..., description="Whether the deepfake detection model is loaded")
 
 
 class StructuredDataResponse(BaseModel):
@@ -147,8 +150,8 @@ class VerificationResponse(BaseModel):
     deepfake_check: DeepfakeCheckResponse = Field(..., description="Deepfake detection results")
     document_authenticity: DocumentAuthResponse = Field(..., description="Document authenticity verification results")
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "verification_id": "54ee01af-5059-40da-bf40-e5e9092bdade",
                 "timestamp": "2025-11-01T19:17:04.473461",
@@ -187,6 +190,7 @@ class VerificationResponse(BaseModel):
                 }
             }
         }
+    }
 
 
 class ExtractionResponse(BaseModel):
@@ -198,8 +202,8 @@ class ExtractionResponse(BaseModel):
     structured_data: Optional[StructuredDataResponse] = Field(None, description="Structured extracted data (null if no MRZ detected)")
     timestamp: datetime = Field(..., description="ISO 8601 timestamp of extraction")
     
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "success": True,
                 "mrz_detected": True,
@@ -215,6 +219,7 @@ class ExtractionResponse(BaseModel):
                 "timestamp": "2025-11-01T19:00:00Z"
             }
         }
+    }
 
 
 class HealthResponse(BaseModel):
@@ -226,8 +231,8 @@ class HealthResponse(BaseModel):
     timestamp: datetime = Field(..., description="ISO 8601 timestamp of health check")
     components: Dict[str, bool] = Field(..., description="Status of individual components")
     
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "status": "healthy",
                 "version": "2.0.0",
@@ -244,3 +249,4 @@ class HealthResponse(BaseModel):
                 }
             }
         }
+    }
