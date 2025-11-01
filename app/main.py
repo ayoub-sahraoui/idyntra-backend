@@ -85,7 +85,21 @@ def create_app() -> FastAPI:
         version=settings.VERSION,
         description="Production-grade identity verification API",
         lifespan=lifespan,
-        debug=settings.DEBUG
+        debug=settings.DEBUG,
+        servers=[
+            {
+                "url": "https://api.idyntra.space",
+                "description": "Production server"
+            },
+            {
+                "url": "http://localhost:8000",
+                "description": "Local development server"
+            }
+        ],
+        root_path="" if settings.DEBUG else "",
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json"
     )
 
     # Configure request tracking middleware
