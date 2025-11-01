@@ -1,6 +1,41 @@
 # Docker Build Fixes Applied
 
-## Issues Fixed
+## Latest Update: Model Download Resilience (Nov 1, 2025)
+
+### HuggingFace Model Download Failure
+**Problem**: Build failing at model download stage with exit code 1:
+```
+failed to solve: process "/bin/sh -c python -c \"from transformers import AutoImageProcessor...
+exit code: 1
+```
+
+**Root Causes**:
+- Network connectivity issues to HuggingFace servers
+- Model download timeouts
+- Potential rate limiting
+
+**Solutions Implemented**:
+1. **Retry Logic**: Added automatic retry mechanism (2 attempts with 5-second delay)
+2. **Timeout Configuration**: Set explicit 60-second timeout for downloads
+3. **Graceful Fallback**: If build-time download fails, models download at runtime
+4. **Cache Environment Variables**: Set `HF_HOME` and `TRANSFORMERS_CACHE` explicitly
+5. **Enhanced Scripts**: Created `build-production.ps1` and `build-production.sh` with error handling
+
+**Files Changed**:
+- `Dockerfile.production` (lines 105-131): Enhanced model download with retry logic
+- `build-production.ps1` (new): PowerShell build script with network checks
+- `build-production.sh` (new): Bash build script with prerequisites validation
+- `DOCKER_BUILD_TROUBLESHOOTING.md` (new): Comprehensive troubleshooting guide
+
+**Quick Fix**:
+```powershell
+# Use the enhanced build script
+.\build-production.ps1
+```
+
+---
+
+## Previous Issues Fixed
 
 ### 1. Dockerfile Syntax Error (Heredoc)
 **Problem**: Docker heredoc syntax (`<< 'EOF'`) was not parsing correctly, causing:
