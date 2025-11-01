@@ -41,6 +41,15 @@ async def lifespan(app: FastAPI):
 
     # Log worker process ID for debugging
     worker_id = os.getpid()
+    
+    # Force print to stdout (visible in Docker logs)
+    import sys
+    print(f"\n{'=' * 70}", file=sys.stderr, flush=True)
+    print(f"🚀 Starting {settings.APP_NAME} v{settings.VERSION} [PID: {worker_id}]", file=sys.stderr, flush=True)
+    print(f"Device mode: {'GPU' if not settings.CPU_ONLY else 'CPU'}", file=sys.stderr, flush=True)
+    print(f"Debug mode: {settings.DEBUG}", file=sys.stderr, flush=True)
+    print(f"{'=' * 70}\n", file=sys.stderr, flush=True)
+    
     logger.info("=" * 70)
     logger.info(f"🚀 Starting {settings.APP_NAME} v{settings.VERSION} [PID: {worker_id}]")
     logger.info(f"Device mode: {'GPU' if not settings.CPU_ONLY else 'CPU'}")
@@ -57,43 +66,58 @@ async def lifespan(app: FastAPI):
             get_deepfake_detector
         )
 
+        print(f"[PID {worker_id}] Loading ML models...", file=sys.stderr, flush=True)
         logger.info("Loading ML models...")
         
         try:
             get_liveness_detector()
+            print(f"[PID {worker_id}] ✓ Liveness detector loaded", file=sys.stderr, flush=True)
             logger.info("✓ Liveness detector loaded")
         except Exception as e:
+            print(f"[PID {worker_id}] ✗ FAILED to load liveness detector: {str(e)}", file=sys.stderr, flush=True)
             logger.exception(f"✗ FAILED to load liveness detector: {str(e)}")
             raise
         
         try:
             get_face_matcher()
+            print(f"[PID {worker_id}] ✓ Face matcher loaded", file=sys.stderr, flush=True)
             logger.info("✓ Face matcher loaded")
         except Exception as e:
+            print(f"[PID {worker_id}] ✗ FAILED to load face matcher: {str(e)}", file=sys.stderr, flush=True)
             logger.exception(f"✗ FAILED to load face matcher: {str(e)}")
             raise
         
         try:
             get_mrz_extractor()
+            print(f"[PID {worker_id}] ✓ MRZ extractor loaded", file=sys.stderr, flush=True)
             logger.info("✓ MRZ extractor loaded")
         except Exception as e:
+            print(f"[PID {worker_id}] ✗ FAILED to load MRZ extractor: {str(e)}", file=sys.stderr, flush=True)
             logger.exception(f"✗ FAILED to load MRZ extractor: {str(e)}")
             raise
         
         try:
             get_document_authenticator()
+            print(f"[PID {worker_id}] ✓ Document authenticator loaded", file=sys.stderr, flush=True)
             logger.info("✓ Document authenticator loaded")
         except Exception as e:
+            print(f"[PID {worker_id}] ✗ FAILED to load document authenticator: {str(e)}", file=sys.stderr, flush=True)
             logger.exception(f"✗ FAILED to load document authenticator: {str(e)}")
             raise
         
         try:
             get_deepfake_detector()
+            print(f"[PID {worker_id}] ✓ Deepfake detector loaded", file=sys.stderr, flush=True)
             logger.info("✓ Deepfake detector loaded")
         except Exception as e:
+            print(f"[PID {worker_id}] ✗ FAILED to load deepfake detector: {str(e)}", file=sys.stderr, flush=True)
             logger.exception(f"✗ FAILED to load deepfake detector: {str(e)}")
             raise
 
+        print(f"\n{'=' * 70}", file=sys.stderr, flush=True)
+        print(f"[PID {worker_id}] ✓ ALL COMPONENTS INITIALIZED SUCCESSFULLY", file=sys.stderr, flush=True)
+        print(f"{'=' * 70}\n", file=sys.stderr, flush=True)
+        
         logger.info("=" * 70)
         logger.info("✓ ALL COMPONENTS INITIALIZED SUCCESSFULLY")
         logger.info("=" * 70)
