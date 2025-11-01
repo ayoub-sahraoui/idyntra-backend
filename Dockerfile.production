@@ -102,19 +102,43 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 # ============================================================================
 FROM builder AS models
 
-# Pre-download and cache HuggingFace models
+# Set HuggingFace cache directory
+ENV HF_HOME=/root/.cache/huggingface
+ENV TRANSFORMERS_CACHE=/root/.cache/huggingface/transformers
+
+# Pre-download and cache HuggingFace models with retry logic
+# Note: This is optional - models will be downloaded at runtime if not cached
 RUN python -c "from transformers import AutoImageProcessor, AutoModelForImageClassification; \
     import sys; \
-    print('📥 Downloading deepfake detection model...', file=sys.stderr); \
-    processor = AutoImageProcessor.from_pretrained('dima806/deepfake_vs_real_image_detection'); \
-    model = AutoModelForImageClassification.from_pretrained('dima806/deepfake_vs_real_image_detection'); \
-    print('✅ Models cached successfully!', file=sys.stderr)"
+    import time; \
+    max_retries = 2; \
+    retry_delay = 5; \
+    for attempt in range(max_retries): \
+        try: \
+            print(f'📥 Downloading deepfake detection model (attempt {attempt + 1}/{max_retries})...', file=sys.stderr); \
+            processor = AutoImageProcessor.from_pretrained('dima806/deepfake_vs_real_image_detection', resume_download=True, timeout=60); \
+            model = AutoModelForImageClassification.from_pretrained('dima806/deepfake_vs_real_image_detection', resume_download=True, timeout=60); \
+            print('✅ Models cached successfully!', file=sys.stderr); \
+            break; \
+        except Exception as e: \
+            print(f'⚠️ Attempt {attempt + 1} failed: {e}', file=sys.stderr); \
+            if attempt < max_retries - 1: \
+                print(f'Retrying in {retry_delay} seconds...', file=sys.stderr); \
+                time.sleep(retry_delay); \
+            else: \
+                print('⚠️ Model download failed - will download at runtime on first use', file=sys.stderr); \
+                raise SystemExit(0)" || echo "⚠️ Model download skipped - will download at runtime"
 
 # Pre-load face recognition models (dlib)
 RUN python -c "import face_recognition; \
     import cv2; \
     import sys; \
-    print('✅ Face recognition models loaded', file=sys.stderr)"
+    try: \
+        print('📥 Loading face recognition models...', file=sys.stderr); \
+        import dlib; \
+        print('✅ Face recognition models loaded', file=sys.stderr); \
+    except Exception as e: \
+        print(f'⚠️ Face recognition models will load at runtime: {e}', file=sys.stderr)" || echo "⚠️ Model pre-loading skipped"
 
 # ============================================================================
 # Stage 4: Security Scanner (OPTIONAL - can be disabled in production)
