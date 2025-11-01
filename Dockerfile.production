@@ -167,91 +167,79 @@ RUN groupadd -g 1000 apiuser && \
     chown apiuser:apiuser /app/logs /app/temp
 
 # Create startup script with proper signal handling
-RUN cat > /app/entrypoint.sh << 'ENTRYPOINT_EOF'
-#!/bin/bash
-set -e
-
-# Trap SIGTERM and SIGINT for graceful shutdown
-_term() {
-  echo "Received SIGTERM signal, shutting down gracefully..."
-  kill -TERM "$child" 2>/dev/null
-}
-
-trap _term SIGTERM SIGINT
-
-# Create log file with proper permissions
-touch /app/logs/idv_api.log
-chmod 640 /app/logs/idv_api.log
-
-# Log startup
-echo "========================================" | tee -a /app/logs/idv_api.log
-echo "🚀 Starting ID Verification API v${VERSION:-2.0.0}" | tee -a /app/logs/idv_api.log
-echo "⏰ $(date)" | tee -a /app/logs/idv_api.log
-echo "👤 Running as: $(whoami)" | tee -a /app/logs/idv_api.log
-echo "🖥️  CPU Mode: ${CPU_ONLY:-1}" | tee -a /app/logs/idv_api.log
-echo "========================================" | tee -a /app/logs/idv_api.log
-
-# Start uvicorn with proper configuration
-exec uvicorn app.main:app \
-    --host 0.0.0.0 \
-    --port "${PORT:-8000}" \
-    --workers "${WORKERS:-4}" \
-    --loop uvloop \
-    --log-config /dev/null \
-    --no-access-log \
-    --proxy-headers \
-    --forwarded-allow-ips='*' &
-
-child=$!
-wait "$child"
-ENTRYPOINT_EOF
-
-RUN chmod +x /app/entrypoint.sh
+RUN printf '#!/bin/bash\n\
+set -e\n\
+\n\
+# Trap SIGTERM and SIGINT for graceful shutdown\n\
+_term() {\n\
+  echo "Received SIGTERM signal, shutting down gracefully..."\n\
+  kill -TERM "$child" 2>/dev/null\n\
+}\n\
+\n\
+trap _term SIGTERM SIGINT\n\
+\n\
+# Create log file with proper permissions\n\
+touch /app/logs/idv_api.log\n\
+chmod 640 /app/logs/idv_api.log\n\
+\n\
+# Log startup\n\
+echo "========================================" | tee -a /app/logs/idv_api.log\n\
+echo "🚀 Starting ID Verification API v${VERSION:-2.0.0}" | tee -a /app/logs/idv_api.log\n\
+echo "⏰ $(date)" | tee -a /app/logs/idv_api.log\n\
+echo "👤 Running as: $(whoami)" | tee -a /app/logs/idv_api.log\n\
+echo "🖥️  CPU Mode: ${CPU_ONLY:-1}" | tee -a /app/logs/idv_api.log\n\
+echo "========================================" | tee -a /app/logs/idv_api.log\n\
+\n\
+# Start uvicorn with proper configuration\n\
+exec uvicorn app.main:app \\\n\
+    --host 0.0.0.0 \\\n\
+    --port "${PORT:-8000}" \\\n\
+    --workers "${WORKERS:-4}" \\\n\
+    --loop uvloop \\\n\
+    --log-config /dev/null \\\n\
+    --no-access-log \\\n\
+    --proxy-headers \\\n\
+    --forwarded-allow-ips='"'"'*'"'"' &\n\
+\n\
+child=$!\n\
+wait "$child"\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 # Create health check script
-RUN cat > /app/healthcheck.sh << 'HEALTHCHECK_EOF'
-#!/bin/bash
-set -e
-
-# Check if the API is responding
-if ! curl -f -s -o /dev/null http://localhost:${PORT:-8000}/health; then
-    echo "❌ Health check failed: API not responding"
-    exit 1
-fi
-
-# Check if log directory is writable
-if [ ! -w /app/logs ]; then
-    echo "❌ Health check failed: Log directory not writable"
-    exit 1
-fi
-
-# Check if temp directory is writable
-if [ ! -w /app/temp ]; then
-    echo "❌ Health check failed: Temp directory not writable"
-    exit 1
-fi
-
-# Check if model cache is accessible
-if [ ! -r /root/.cache ]; then
-    echo "⚠️  Warning: Model cache not accessible"
-fi
-
-echo "✅ Health check passed"
-exit 0
-HEALTHCHECK_EOF
-
-RUN chmod +x /app/healthcheck.sh
+RUN printf '#!/bin/bash\n\
+set -e\n\
+\n\
+# Check if the API is responding\n\
+if ! curl -f -s -o /dev/null http://localhost:${PORT:-8000}/health; then\n\
+    echo "❌ Health check failed: API not responding"\n\
+    exit 1\n\
+fi\n\
+\n\
+# Check if log directory is writable\n\
+if [ ! -w /app/logs ]; then\n\
+    echo "❌ Health check failed: Log directory not writable"\n\
+    exit 1\n\
+fi\n\
+\n\
+# Check if temp directory is writable\n\
+if [ ! -w /app/temp ]; then\n\
+    echo "❌ Health check failed: Temp directory not writable"\n\
+    exit 1\n\
+fi\n\
+\n\
+# Check if model cache is accessible\n\
+if [ ! -r /root/.cache ]; then\n\
+    echo "⚠️  Warning: Model cache not accessible"\n\
+fi\n\
+\n\
+echo "✅ Health check passed"\n\
+exit 0\n' > /app/healthcheck.sh && chmod +x /app/healthcheck.sh
 
 # Create log cleanup script
-RUN cat > /app/cleanup_logs.sh << 'CLEANUP_EOF'
-#!/bin/bash
-# Clean up logs larger than 100MB
-find /app/logs -type f -name "*.log" -size +100M -exec rm -f {} \;
-# Clean up temp files older than 24 hours
-find /app/temp -type f -mtime +1 -delete
-CLEANUP_EOF
-
-RUN chmod +x /app/cleanup_logs.sh
+RUN printf '#!/bin/bash\n\
+# Clean up logs larger than 100MB\n\
+find /app/logs -type f -name "*.log" -size +100M -exec rm -f {} \\;\n\
+# Clean up temp files older than 24 hours\n\
+find /app/temp -type f -mtime +1 -delete\n' > /app/cleanup_logs.sh && chmod +x /app/cleanup_logs.sh
 
 # Switch to non-root user
 USER apiuser
