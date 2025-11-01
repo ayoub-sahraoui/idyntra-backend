@@ -11,7 +11,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,
-        extra="ignore"
+        extra="ignore",
+        protected_namespaces=()  # Allow fields starting with 'model_'
     )
 
     # API Info
@@ -32,8 +33,8 @@ class Settings(BaseSettings):
     # Rate Limiting
     MAX_REQUESTS_PER_MINUTE: int = 60
     
-    # API Authentication
-    VALID_API_KEYS: List[str] = []
+    # API Authentication (comma-separated string, converted to list at runtime)
+    VALID_API_KEYS: str = ""
     
     # Security Headers
     ENABLE_SECURITY_HEADERS: bool = True

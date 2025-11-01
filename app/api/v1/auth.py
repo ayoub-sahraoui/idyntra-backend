@@ -41,8 +41,14 @@ def verify_api_key(api_key: Optional[str] = Security(api_key_header)) -> str:
 
     settings = get_settings()
     
+    # Parse valid API keys from comma-separated string
+    valid_keys = [k.strip() for k in settings.VALID_API_KEYS.split(",") if k.strip()]
+    
+    # If no keys configured, skip validation (dev mode only)
+    if not valid_keys:
+        return "anonymous"
+    
     # In production, this should be replaced with a database lookup
-    valid_keys = os.environ.get("VALID_API_KEYS", "").split(",")
     if not any(hmac.compare_digest(api_key, valid_key) for valid_key in valid_keys):
         raise HTTPException(
             status_code=HTTP_403_FORBIDDEN,

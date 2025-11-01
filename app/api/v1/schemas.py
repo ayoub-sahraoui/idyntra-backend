@@ -26,6 +26,8 @@ class DocumentAuthResponse(BaseModel):
 
 
 class DeepfakeCheckResponse(BaseModel):
+    model_config = {"protected_namespaces": ()}  # Allow 'model_' prefix
+    
     is_real: bool
     confidence: float = Field(..., ge=0.0, le=1.0)
     label: Optional[str] = None
