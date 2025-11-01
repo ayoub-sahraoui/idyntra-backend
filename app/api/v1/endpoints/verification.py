@@ -35,28 +35,55 @@ async def verify_identity(
     """
 
     verification_id = str(uuid.uuid4())
-    logger.info(f"[{verification_id}] Verification request: {id_document.filename}, {selfie.filename}")
-
+    
     try:
-        # Validate files
-        file_metadata: List[FileMetadata] = await validate_files(
-            [id_document, selfie],
-            min_dimensions=(640, 480),  # Minimum resolution for good quality
-            max_dimensions=(4096, 4096)  # Reasonable maximum size
-        )
+        logger.info(f"[{verification_id}] === VERIFICATION REQUEST START ===")
+        logger.info(f"[{verification_id}] ID Document: {id_document.filename}, Content-Type: {id_document.content_type}")
+        logger.info(f"[{verification_id}] Selfie: {selfie.filename}, Content-Type: {selfie.content_type}")
         
-        logger.info(
-            f"[{verification_id}] File validation passed: "
-            f"ID ({file_metadata[0].width}x{file_metadata[0].height}), "
-            f"Selfie ({file_metadata[1].width}x{file_metadata[1].height})"
-        )
+        # Check if service is available
+        if service is None:
+            logger.error(f"[{verification_id}] CRITICAL: VerificationService is None!")
+            raise HTTPException(status_code=503, detail="Verification service not initialized")
+        
+        logger.info(f"[{verification_id}] Service available, starting validation...")
+
+        # Validate files
+        try:
+            file_metadata: List[FileMetadata] = await validate_files(
+                [id_document, selfie],
+                min_dimensions=(640, 480),
+                max_dimensions=(4096, 4096)
+            )
+            logger.info(
+                f"[{verification_id}] ✓ File validation passed: "
+                f"ID ({file_metadata[0].width}x{file_metadata[0].height}), "
+                f"Selfie ({file_metadata[1].width}x{file_metadata[1].height})"
+            )
+        except Exception as e:
+            logger.error(f"[{verification_id}] File validation failed: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"File validation failed: {str(e)}")
 
         # Read images
-        id_img = await read_uploaded_image(id_document)
-        selfie_img = await read_uploaded_image(selfie)
+        try:
+            logger.info(f"[{verification_id}] Reading images...")
+            id_img = await read_uploaded_image(id_document)
+            logger.info(f"[{verification_id}] ✓ ID document image read, shape: {id_img.shape}")
+            
+            selfie_img = await read_uploaded_image(selfie)
+            logger.info(f"[{verification_id}] ✓ Selfie image read, shape: {selfie_img.shape}")
+        except Exception as e:
+            logger.error(f"[{verification_id}] Image reading failed: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Failed to read images: {str(e)}")
 
         # Run verification
-        result = await service.verify_identity(id_img, selfie_img)
+        try:
+            logger.info(f"[{verification_id}] Starting verification process...")
+            result = await service.verify_identity(id_img, selfie_img)
+            logger.info(f"[{verification_id}] ✓ Verification process completed")
+        except Exception as e:
+            logger.error(f"[{verification_id}] Verification process failed: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Verification process failed: {str(e)}")
 
         # Build response
         response = VerificationResponse(
@@ -65,12 +92,12 @@ async def verify_identity(
             **result
         )
 
-        logger.info(f"[{verification_id}] Verification complete: {result['status']}")
-
+        logger.info(f"[{verification_id}] === VERIFICATION COMPLETE: {result['status']} ===")
         return response
 
     except HTTPException:
+        logger.error(f"[{verification_id}] HTTPException raised")
         raise
     except Exception as e:
-        logger.exception(f"[{verification_id}] Verification failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)}")
+        logger.exception(f"[{verification_id}] UNEXPECTED ERROR: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

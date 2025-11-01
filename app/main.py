@@ -45,31 +45,60 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 70)
 
     # Initialize components (triggers @lru_cache)
-    from app.dependencies import (
-        get_liveness_detector,
-        get_face_matcher,
-        get_mrz_extractor,
-        get_document_authenticator,
-        get_deepfake_detector
-    )
+    try:
+        from app.dependencies import (
+            get_liveness_detector,
+            get_face_matcher,
+            get_mrz_extractor,
+            get_document_authenticator,
+            get_deepfake_detector
+        )
 
-    logger.info("Loading ML models...")
-    get_liveness_detector()
-    logger.info("✓ Liveness detector loaded")
-    
-    get_face_matcher()
-    logger.info("✓ Face matcher loaded")
-    
-    get_mrz_extractor()
-    logger.info("✓ MRZ extractor loaded")
-    
-    get_document_authenticator()
-    logger.info("✓ Document authenticator loaded")
-    
-    get_deepfake_detector()
-    logger.info("✓ Deepfake detector loaded")
+        logger.info("Loading ML models...")
+        
+        try:
+            get_liveness_detector()
+            logger.info("✓ Liveness detector loaded")
+        except Exception as e:
+            logger.exception(f"✗ FAILED to load liveness detector: {str(e)}")
+            raise
+        
+        try:
+            get_face_matcher()
+            logger.info("✓ Face matcher loaded")
+        except Exception as e:
+            logger.exception(f"✗ FAILED to load face matcher: {str(e)}")
+            raise
+        
+        try:
+            get_mrz_extractor()
+            logger.info("✓ MRZ extractor loaded")
+        except Exception as e:
+            logger.exception(f"✗ FAILED to load MRZ extractor: {str(e)}")
+            raise
+        
+        try:
+            get_document_authenticator()
+            logger.info("✓ Document authenticator loaded")
+        except Exception as e:
+            logger.exception(f"✗ FAILED to load document authenticator: {str(e)}")
+            raise
+        
+        try:
+            get_deepfake_detector()
+            logger.info("✓ Deepfake detector loaded")
+        except Exception as e:
+            logger.exception(f"✗ FAILED to load deepfake detector: {str(e)}")
+            raise
 
-    logger.info("✓ All components initialized")
+        logger.info("=" * 70)
+        logger.info("✓ ALL COMPONENTS INITIALIZED SUCCESSFULLY")
+        logger.info("=" * 70)
+        
+    except Exception as e:
+        logger.exception(f"CRITICAL: Model initialization failed: {str(e)}")
+        logger.error("Application will continue but endpoints may fail!")
+        # Don't raise - allow app to start even if models fail
 
     # Register exception handlers
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)

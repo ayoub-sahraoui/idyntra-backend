@@ -26,14 +26,32 @@ async def extract_document_text(
     Uses multiple OCR engines with fallback support.
     """
 
-    logger.info(f"MRZ extraction request: {document.filename}")
-
     try:
+        logger.info(f"=== MRZ EXTRACTION REQUEST START ===")
+        logger.info(f"Document: {document.filename}, Content-Type: {document.content_type}")
+        
+        # Check if extractor is available
+        if extractor is None:
+            logger.error("CRITICAL: MRZ Extractor is None!")
+            raise HTTPException(status_code=503, detail="MRZ extraction service not initialized")
+
         # Read image
-        image = await read_uploaded_image(document)
+        try:
+            logger.info("Reading document image...")
+            image = await read_uploaded_image(document)
+            logger.info(f"✓ Document image read, shape: {image.shape}")
+        except Exception as e:
+            logger.error(f"Image reading failed: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Failed to read image: {str(e)}")
 
         # Extract MRZ
-        result = extractor.extract(image)
+        try:
+            logger.info("Starting MRZ extraction...")
+            result = extractor.extract(image)
+            logger.info(f"✓ MRZ extraction completed")
+        except Exception as e:
+            logger.error(f"MRZ extraction failed: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"MRZ extraction failed: {str(e)}")
 
         fields_extracted = sum(1 for v in result.values() if v is not None and v != '')
         mrz_detected = fields_extracted > 0
@@ -54,9 +72,11 @@ async def extract_document_text(
             timestamp=datetime.utcnow()
         )
 
-        logger.info(f"MRZ extraction complete: {fields_extracted} fields")
+        logger.info(f"=== MRZ EXTRACTION COMPLETE: {fields_extracted} fields ===")
         return response
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.exception(f"MRZ extraction failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
+        logger.exception(f"UNEXPECTED ERROR: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
