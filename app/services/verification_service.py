@@ -34,7 +34,8 @@ class VerificationService:
         self.logger = logger
 
         # Thread pool for CPU-bound tasks
-        self.executor = ThreadPoolExecutor(max_workers=4)
+        # Using max_workers=1 to avoid segfaults with face_recognition/dlib threading issues
+        self.executor = ThreadPoolExecutor(max_workers=1)
 
     async def verify_identity(
         self,
@@ -65,28 +66,42 @@ class VerificationService:
         id_document,
         selfie
     ) -> Dict:
-        """Run independent checks in parallel"""
-        # Create coroutines for independent operations
-        tasks = {
-            'liveness_check': self._run_liveness_check(selfie),
-            'deepfake_check': self._run_deepfake_check(selfie),
-            'document_authenticity': self._run_document_check(id_document),
-            'face_match': self._run_face_match(id_document, selfie)
-        }
-
-        # Run them concurrently and collect results
-        names = list(tasks.keys())
-        coros = list(tasks.values())
-
-        gathered = await asyncio.gather(*coros, return_exceptions=True)
-
+        """Run checks sequentially to avoid threading issues with ML libraries"""
         results = {}
-        for name, res in zip(names, gathered):
-            if isinstance(res, Exception):
-                self.logger.exception(f"{name} check failed: {res}")
-                results[name] = {'passed': False, 'error': str(res)}
-            else:
-                results[name] = res
+        
+        # Run checks sequentially (not in parallel) to prevent segfaults
+        # face_recognition/dlib and transformers have threading issues
+        try:
+            self.logger.info("Running liveness check...")
+            results['liveness_check'] = await self._run_liveness_check(selfie)
+            self.logger.info("✓ Liveness check completed")
+        except Exception as e:
+            self.logger.exception(f"Liveness check failed: {e}")
+            results['liveness_check'] = {'passed': False, 'error': str(e)}
+        
+        try:
+            self.logger.info("Running deepfake check...")
+            results['deepfake_check'] = await self._run_deepfake_check(selfie)
+            self.logger.info("✓ Deepfake check completed")
+        except Exception as e:
+            self.logger.exception(f"Deepfake check failed: {e}")
+            results['deepfake_check'] = {'passed': False, 'error': str(e)}
+        
+        try:
+            self.logger.info("Running document authenticity check...")
+            results['document_authenticity'] = await self._run_document_check(id_document)
+            self.logger.info("✓ Document authenticity check completed")
+        except Exception as e:
+            self.logger.exception(f"Document authenticity check failed: {e}")
+            results['document_authenticity'] = {'passed': False, 'error': str(e)}
+        
+        try:
+            self.logger.info("Running face match...")
+            results['face_match'] = await self._run_face_match(id_document, selfie)
+            self.logger.info("✓ Face match completed")
+        except Exception as e:
+            self.logger.exception(f"Face match failed: {e}")
+            results['face_match'] = {'passed': False, 'error': str(e)}
 
         return results
 
