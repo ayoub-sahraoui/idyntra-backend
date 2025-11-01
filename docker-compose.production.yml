@@ -1,0 +1,499 @@
+# ============================================================================
+# Production-Ready Docker Compose Configuration
+# ============================================================================
+# Features:
+# - PostgreSQL database for persistent storage
+# - Redis for caching and rate limiting
+# - Nginx as reverse proxy with SSL support
+# - Prometheus for metrics collection
+# - Grafana for monitoring dashboards
+# - Proper networking and security
+# - Health checks for all services
+# - Resource limits and restart policies
+# ============================================================================
+
+version: '3.9'
+
+# ============================================================================
+# Service Definitions
+# ============================================================================
+services:
+  # --------------------------------------------------------------------------
+  # PostgreSQL Database
+  # --------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: idyntra-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-idverification}
+      POSTGRES_USER: ${POSTGRES_USER:-idv_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:5432:5432"  # Only expose to localhost
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-idv_user} -d ${POSTGRES_DB:-idverification}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 512M
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # --------------------------------------------------------------------------
+  # Redis Cache & Session Store
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: idyntra-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      --tcp-backlog 511
+      --timeout 300
+      --tcp-keepalive 60
+    volumes:
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:6379:6379"  # Only expose to localhost
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # --------------------------------------------------------------------------
+  # ID Verification API (Main Application)
+  # --------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+      args:
+        BUILD_DATE: ${BUILD_DATE:-}
+        VCS_REF: ${VCS_REF:-}
+        VERSION: ${VERSION:-2.0.0}
+      cache_from:
+        - idyntra/id-verification-api:latest
+    image: idyntra/id-verification-api:${VERSION:-2.0.0}
+    container_name: idyntra-api
+    restart: unless-stopped
+    environment:
+      # Application
+      APP_NAME: ${APP_NAME:-ID Verification API}
+      VERSION: ${VERSION:-2.0.0}
+      DEBUG: ${DEBUG:-false}
+      
+      # Server
+      HOST: 0.0.0.0
+      PORT: 8000
+      WORKERS: ${WORKERS:-4}
+      
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-idv_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-idverification}
+      
+      # Redis
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_CACHE_TTL: ${REDIS_CACHE_TTL:-3600}
+      
+      # Security
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      API_KEY_HASH_SALT: ${API_KEY_HASH_SALT:?API_KEY_HASH_SALT is required}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,api,nginx}
+      
+      # Rate Limiting
+      MAX_REQUESTS_PER_MINUTE: ${MAX_REQUESTS_PER_MINUTE:-60}
+      
+      # Hardware
+      CPU_ONLY: ${CPU_ONLY:-1}
+      CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-0}
+      
+      # Verification Thresholds
+      LIVENESS_SCORE_MIN: ${LIVENESS_SCORE_MIN:-0.65}
+      LIVENESS_SCORE_HIGH: ${LIVENESS_SCORE_HIGH:-0.80}
+      BLUR_THRESHOLD: ${BLUR_THRESHOLD:-100.0}
+      FACE_MATCH_CONFIDENCE_MIN: ${FACE_MATCH_CONFIDENCE_MIN:-70.0}
+      FACE_MATCH_CONFIDENCE_HIGH: ${FACE_MATCH_CONFIDENCE_HIGH:-85.0}
+      FACE_MATCH_TOLERANCE: ${FACE_MATCH_TOLERANCE:-0.5}
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FILE: /app/logs/idv_api.log
+      LOG_MAX_BYTES: 10485760
+      LOG_BACKUP_COUNT: 5
+      
+      # Monitoring
+      ENABLE_METRICS: ${ENABLE_METRICS:-true}
+      METRICS_PORT: 9090
+      
+      # Timeouts
+      REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-30}
+      
+      # File Upload
+      MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-10485760}
+    volumes:
+      - model_cache:/root/.cache:rw
+      - api_logs:/app/logs:rw
+      - api_temp:/app/temp:rw
+      - ./app:/app/app:ro  # Mount for development (remove in production)
+    ports:
+      - "127.0.0.1:8000:8000"  # Only expose to localhost (Nginx handles external)
+      - "127.0.0.1:9090:9090"  # Prometheus metrics
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend
+      - frontend
+    healthcheck:
+      test: ["CMD", "/app/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 6G
+        reservations:
+          cpus: '2'
+          memory: 3G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    security_opt:
+      - no-new-privileges:true
+    read_only: false  # Needs write access to /app/logs and /app/temp
+    tmpfs:
+      - /tmp:size=100M,mode=1777
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service,container"
+
+  # --------------------------------------------------------------------------
+  # Nginx Reverse Proxy with SSL
+  # --------------------------------------------------------------------------
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: idyntra-nginx
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - nginx_logs:/var/log/nginx:rw
+      - nginx_cache:/var/cache/nginx:rw
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - frontend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 128M
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # --------------------------------------------------------------------------
+  # Prometheus (Metrics Collection)
+  # --------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    container_name: idyntra-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus:rw
+    ports:
+      - "127.0.0.1:9091:9090"  # Only expose to localhost
+    networks:
+      - backend
+      - monitoring
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # --------------------------------------------------------------------------
+  # Grafana (Monitoring Dashboard)
+  # --------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: idyntra-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      GF_USERS_ALLOW_SIGN_UP: false
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3001}
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana:rw
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - monitoring
+      - frontend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 128M
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # --------------------------------------------------------------------------
+  # Log Cleanup Cron (Optional)
+  # --------------------------------------------------------------------------
+  log-cleanup:
+    image: alpine:3.19
+    container_name: idyntra-log-cleanup
+    restart: unless-stopped
+    volumes:
+      - api_logs:/logs:rw
+    command: >
+      sh -c "while true; do
+        echo 'Cleaning up old logs...'
+        find /logs -type f -name '*.log' -mtime +7 -delete
+        echo 'Log cleanup complete'
+        sleep 86400
+      done"
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 50M
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+# ============================================================================
+# Volume Definitions
+# ============================================================================
+volumes:
+  # Database
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_DIR:-./data}/postgres
+
+  # Cache
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_DIR:-./data}/redis
+
+  # Application
+  model_cache:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_DIR:-./data}/model_cache
+
+  api_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_DIR:-./data}/logs
+
+  api_temp:
+    driver: local
+
+  # Nginx
+  nginx_logs:
+    driver: local
+  nginx_cache:
+    driver: local
+
+  # Monitoring
+  prometheus_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_DIR:-./data}/prometheus
+
+  grafana_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_DIR:-./data}/grafana
+
+# ============================================================================
+# Network Definitions
+# ============================================================================
+networks:
+  # Backend network (API, DB, Redis, Prometheus)
+  backend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+    driver_opts:
+      com.docker.network.bridge.name: idyntra-backend
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+
+  # Frontend network (Nginx, API)
+  frontend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+    driver_opts:
+      com.docker.network.bridge.name: idyntra-frontend
+
+  # Monitoring network (Prometheus, Grafana)
+  monitoring:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16
+    driver_opts:
+      com.docker.network.bridge.name: idyntra-monitoring
+
+# ============================================================================
+# Usage:
+# ============================================================================
+# Production deployment:
+#   docker-compose -f docker-compose.production.yml up -d
+#
+# View logs:
+#   docker-compose -f docker-compose.production.yml logs -f api
+#
+# Scale API:
+#   docker-compose -f docker-compose.production.yml up -d --scale api=3
+#
+# Stop all services:
+#   docker-compose -f docker-compose.production.yml down
+#
+# Clean up everything (including volumes):
+#   docker-compose -f docker-compose.production.yml down -v
+# ============================================================================

@@ -170,12 +170,4 @@ RUN chmod 750 /app && \
     chmod 640 /app/logs/idv_api.log
 
 # Run application with security options
-CMD ["uvicorn", "app.main:app", \
-     "--host", "0.0.0.0", \
-     "--port", "8000", \
-     "--workers", "1", \
-     "--log-level", "info", \
-     "--limit-concurrency", "1000", \
-     "--limit-max-requests", "10000", \
-     "--timeout-keep-alive", "5", \
-     "--server-header", "false"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
