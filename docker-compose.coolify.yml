@@ -112,6 +112,11 @@ services:
       - "traefik.http.routers.api-idyntra.entrypoints=websecure"
       - "traefik.http.routers.api-idyntra.tls.certresolver=letsencrypt"
       - "traefik.http.services.api-idyntra.loadbalancer.server.port=8000"
+      - "traefik.http.services.api-idyntra.loadbalancer.server.scheme=http"
+      
+      # Timeout Configuration (AI processing can take time)
+      - "traefik.http.services.api-idyntra.loadbalancer.responseforwardingtimeouts.dialtimeout=30s"
+      - "traefik.http.services.api-idyntra.loadbalancer.responseforwardingtimeouts.responseheadertimeout=60s"
       
       # Host Header Middleware Fix (prevents gateway timeout)
       - "traefik.http.middlewares.api-host.headers.customrequestheaders.Host=api.idyntra.space"
@@ -179,6 +184,7 @@ services:
         condition: service_healthy
     networks:
       - backend
+      - default
     healthcheck:
       test: ["CMD", "/app/healthcheck.sh"]
       interval: 30s
@@ -218,6 +224,9 @@ volumes:
 # Network Definitions - Simplified for Coolify
 # ============================================================================
 networks:
+  default:
+    # Coolify will attach this to its Traefik network automatically
+    external: false
   backend:
     driver: bridge
     # Let Docker/Coolify manage IP allocation dynamically
