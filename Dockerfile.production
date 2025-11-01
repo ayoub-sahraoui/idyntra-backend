@@ -231,8 +231,7 @@ exec uvicorn app.main:app \\\n\
     --port "${PORT:-8000}" \\\n\
     --workers "${WORKERS:-4}" \\\n\
     --loop uvloop \\\n\
-    --log-config /dev/null \\\n\
-    --no-access-log \\\n\
+    --log-level info \\\n\
     --proxy-headers \\\n\
     --forwarded-allow-ips='"'"'*'"'"' &\n\
 \n\
