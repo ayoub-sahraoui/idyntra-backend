@@ -1,6 +1,7 @@
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from functools import lru_cache
-from typing import List
+from typing import List, Union
 import os
 
 
@@ -21,6 +22,18 @@ class Settings(BaseSettings):
     # CORS and Host Validation
     ALLOWED_ORIGINS: List[str] = ["*"]
     ALLOWED_HOSTS: List[str] = ["*"]
+    
+    @field_validator('ALLOWED_ORIGINS', 'ALLOWED_HOSTS', mode='before')
+    @classmethod
+    def parse_list_or_string(cls, v):
+        """Parse list fields that might come as strings"""
+        if isinstance(v, str):
+            # Handle special case of "*" or single values
+            if v == "*":
+                return ["*"]
+            # Handle comma-separated values
+            return [item.strip() for item in v.split(',')]
+        return v
     
     # Rate Limiting
     MAX_REQUESTS_PER_MINUTE: int = 60
