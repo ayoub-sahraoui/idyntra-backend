@@ -72,6 +72,14 @@ def create_app() -> FastAPI:
     """Application factory pattern"""
 
     settings = get_settings()
+    
+    # Convert string settings to lists for CORS/Host middleware
+    allowed_origins = [settings.ALLOWED_ORIGINS] if settings.ALLOWED_ORIGINS == "*" else [
+        origin.strip() for origin in settings.ALLOWED_ORIGINS.split(',')
+    ]
+    allowed_hosts = [settings.ALLOWED_HOSTS] if settings.ALLOWED_HOSTS == "*" else [
+        host.strip() for host in settings.ALLOWED_HOSTS.split(',')
+    ]
 
     app = FastAPI(
         title=settings.APP_NAME,
@@ -144,7 +152,7 @@ def create_app() -> FastAPI:
     # Configure CORS with stricter settings
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.ALLOWED_ORIGINS,
+        allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=[
@@ -162,7 +170,7 @@ def create_app() -> FastAPI:
     # Add trusted host middleware
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=settings.ALLOWED_HOSTS
+        allowed_hosts=allowed_hosts
     )
 
     # Request timing middleware

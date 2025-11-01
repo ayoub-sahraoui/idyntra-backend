@@ -1,12 +1,18 @@
-from pydantic_settings import BaseSettings
-from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator, Field
 from functools import lru_cache
-from typing import List, Union
+from typing import List
 import os
 
 
 class Settings(BaseSettings):
     """Application settings with environment variable support"""
+    
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore"
+    )
 
     # API Info
     APP_NAME: str = "Enhanced ID Verification API"
@@ -19,21 +25,9 @@ class Settings(BaseSettings):
     WORKERS: int = 4
 
     # Security Settings
-    # CORS and Host Validation
-    ALLOWED_ORIGINS: List[str] = ["*"]
-    ALLOWED_HOSTS: List[str] = ["*"]
-    
-    @field_validator('ALLOWED_ORIGINS', 'ALLOWED_HOSTS', mode='before')
-    @classmethod
-    def parse_list_or_string(cls, v):
-        """Parse list fields that might come as strings"""
-        if isinstance(v, str):
-            # Handle special case of "*" or single values
-            if v == "*":
-                return ["*"]
-            # Handle comma-separated values
-            return [item.strip() for item in v.split(',')]
-        return v
+    # CORS and Host Validation - Use string to avoid JSON parsing issues
+    ALLOWED_ORIGINS: str = "*"
+    ALLOWED_HOSTS: str = "*"
     
     # Rate Limiting
     MAX_REQUESTS_PER_MINUTE: int = 60
@@ -82,11 +76,6 @@ class Settings(BaseSettings):
 
     # File Upload
     MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-        extra = "ignore"
 
 
 @lru_cache()
