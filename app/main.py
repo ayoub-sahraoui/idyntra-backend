@@ -91,6 +91,9 @@ def create_app() -> FastAPI:
     # Configure request tracking middleware
     @app.middleware("http")
     async def request_middleware(request: Request, call_next):
+        # Get logger instance
+        logger = logging.getLogger("idv_api")
+        
         # Generate request ID
         request_id = get_request_id()
         
