@@ -48,12 +48,26 @@ async def lifespan(app: FastAPI):
     from app.dependencies import (
         get_liveness_detector,
         get_face_matcher,
-        get_mrz_extractor
+        get_mrz_extractor,
+        get_document_authenticator,
+        get_deepfake_detector
     )
 
+    logger.info("Loading ML models...")
     get_liveness_detector()
+    logger.info("✓ Liveness detector loaded")
+    
     get_face_matcher()
+    logger.info("✓ Face matcher loaded")
+    
     get_mrz_extractor()
+    logger.info("✓ MRZ extractor loaded")
+    
+    get_document_authenticator()
+    logger.info("✓ Document authenticator loaded")
+    
+    get_deepfake_detector()
+    logger.info("✓ Deepfake detector loaded")
 
     logger.info("✓ All components initialized")
 
@@ -85,21 +99,7 @@ def create_app() -> FastAPI:
         version=settings.VERSION,
         description="Production-grade identity verification API",
         lifespan=lifespan,
-        debug=settings.DEBUG,
-        servers=[
-            {
-                "url": "https://api.idyntra.space",
-                "description": "Production server"
-            },
-            {
-                "url": "http://localhost:8000",
-                "description": "Local development server"
-            }
-        ],
-        root_path="" if settings.DEBUG else "",
-        docs_url="/docs",
-        redoc_url="/redoc",
-        openapi_url="/openapi.json"
+        debug=settings.DEBUG
     )
 
     # Configure request tracking middleware
