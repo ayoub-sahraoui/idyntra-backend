@@ -155,8 +155,12 @@ services:
       - model_cache:/root/.cache:rw
       - api_logs:/app/logs:rw
       - api_temp:/app/temp:rw
-    ports:
-      - "${API_PORT:-8000}:8000"
+    # Port mapping managed by Coolify - no external port exposure needed
+    expose:
+      - "8000"
+    # Uncomment below only if running locally (not in Coolify)
+    # ports:
+    #   - "${API_PORT:-8000}:8000"
     depends_on:
       postgres:
         condition: service_healthy

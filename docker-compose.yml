@@ -34,8 +34,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-scripts:/docker-entrypoint-initdb.d:ro
-    ports:
-      - "127.0.0.1:5432:5432"  # Only expose to localhost
+    # For Coolify: Use 'expose' to avoid port conflicts
+    expose:
+      - "5432"
+    # For local development: Uncomment to access DB externally
+    # ports:
+    #   - "127.0.0.1:5432:5432"
     networks:
       - backend
     healthcheck:
@@ -79,8 +83,12 @@ services:
       --tcp-keepalive 60
     volumes:
       - redis_data:/data
-    ports:
-      - "127.0.0.1:6379:6379"  # Only expose to localhost
+    # For Coolify: Use 'expose' to avoid port conflicts
+    expose:
+      - "6379"
+    # For local development: Uncomment to access Redis externally
+    # ports:
+    #   - "127.0.0.1:6379:6379"
     networks:
       - backend
     healthcheck:
@@ -180,9 +188,14 @@ services:
       - api_logs:/app/logs:rw
       - api_temp:/app/temp:rw
       - ./app:/app/app:ro  # Mount for development (remove in production)
-    ports:
-      - "127.0.0.1:8000:8000"  # Only expose to localhost (Nginx handles external)
-      - "127.0.0.1:9090:9090"  # Prometheus metrics
+    # For Coolify: Use 'expose' instead of 'ports' to avoid conflicts
+    expose:
+      - "8000"
+      - "9090"
+    # For local development: Uncomment the ports below
+    # ports:
+    #   - "127.0.0.1:8000:8000"  # Only expose to localhost (Nginx handles external)
+    #   - "127.0.0.1:9090:9090"  # Prometheus metrics
     depends_on:
       postgres:
         condition: service_healthy
@@ -450,34 +463,32 @@ volumes:
 # ============================================================================
 # Network Definitions
 # ============================================================================
+# For Coolify: Simplified networks without hardcoded subnets
+# Let Docker/Coolify manage IP allocation dynamically
 networks:
   # Backend network (API, DB, Redis, Prometheus)
   backend:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
-    driver_opts:
-      com.docker.network.bridge.name: idyntra-backend
-      com.docker.network.bridge.enable_ip_masquerade: "true"
+    # Removed hardcoded subnets for Coolify compatibility
+    # ipam:
+    #   config:
+    #     - subnet: 172.20.0.0/16
 
   # Frontend network (Nginx, API)
   frontend:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.21.0.0/16
-    driver_opts:
-      com.docker.network.bridge.name: idyntra-frontend
+    # Removed hardcoded subnets for Coolify compatibility
+    # ipam:
+    #   config:
+    #     - subnet: 172.21.0.0/16
 
   # Monitoring network (Prometheus, Grafana)
   monitoring:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.22.0.0/16
-    driver_opts:
-      com.docker.network.bridge.name: idyntra-monitoring
+    # Removed hardcoded subnets for Coolify compatibility
+    # ipam:
+    #   config:
+    #     - subnet: 172.22.0.0/16
 
 # ============================================================================
 # Usage:
