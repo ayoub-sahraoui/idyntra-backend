@@ -101,6 +101,9 @@ services:
         VERSION: ${VERSION:-2.0.0}
     image: ${IMAGE_NAME:-idyntra/id-verification-api}:${VERSION:-2.0.0}
     restart: unless-stopped
+    labels:
+      - "coolify.managed=true"
+      - "coolify.port=8000"
     environment:
       # Application
       APP_NAME: ${APP_NAME:-ID Verification API}
@@ -155,12 +158,9 @@ services:
       - model_cache:/root/.cache:rw
       - api_logs:/app/logs:rw
       - api_temp:/app/temp:rw
-    # Port mapping managed by Coolify - no external port exposure needed
-    expose:
-      - "8000"
-    # Uncomment below only if running locally (not in Coolify)
-    # ports:
-    #   - "${API_PORT:-8000}:8000"
+    # Coolify needs explicit port mapping or expose
+    ports:
+      - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
