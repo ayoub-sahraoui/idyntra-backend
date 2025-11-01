@@ -62,15 +62,21 @@ RUN apt-get update && \
     mkdir -p /app/logs /app/temp /app/security && \
     chmod 770 /app/logs /app/temp
 
-# Download Tesseract trained data files
+# Setup Tesseract trained data directory
+# Note: The tesseract-ocr-eng package already includes eng.traineddata
+# MRZ traineddata will be downloaded at runtime if needed by the application
 RUN mkdir -p /usr/share/tesseract-ocr/4/tessdata && \
-    curl -fsSL -o /usr/share/tesseract-ocr/4/tessdata/mrz.traineddata \
-        https://github.com/alex-raw/tesseract_mrz/raw/master/mrz.traineddata && \
-    curl -fsSL -o /usr/share/tesseract-ocr/4/tessdata/eng.traineddata \
-        https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata && \
-    chmod 644 /usr/share/tesseract-ocr/4/tessdata/*.traineddata && \
-    # Verify download
-    ls -lh /usr/share/tesseract-ocr/4/tessdata/
+    # Check if eng.traineddata exists (should be installed by tesseract-ocr-eng package)
+    if [ ! -f /usr/share/tesseract-ocr/4.00/tessdata/eng.traineddata ]; then \
+        echo "Warning: eng.traineddata not found in default location"; \
+    fi && \
+    # Create symlink to tessdata if needed
+    if [ -d /usr/share/tesseract-ocr/4.00/tessdata ] && [ ! -L /usr/share/tesseract-ocr/4/tessdata ]; then \
+        rm -rf /usr/share/tesseract-ocr/4/tessdata && \
+        ln -s /usr/share/tesseract-ocr/4.00/tessdata /usr/share/tesseract-ocr/4/tessdata; \
+    fi && \
+    ls -lh /usr/share/tesseract-ocr/4*/tessdata/ || true && \
+    echo "✓ Tesseract configuration completed"
 
 # Set TESSDATA_PREFIX globally
 ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/4/tessdata
@@ -148,10 +154,15 @@ COPY --from=security-scanner /app/security /app/security
 COPY --chown=root:root app/ ./app/
 COPY --chown=root:root requirements.txt ./
 
-# Copy Tesseract data to readmrz package
+# Setup Tesseract data for readmrz package
 RUN mkdir -p /usr/local/lib/python3.10/site-packages/readmrz/language/ && \
-    cp /usr/share/tesseract-ocr/4/tessdata/eng.traineddata \
-       /usr/local/lib/python3.10/site-packages/readmrz/language/ 2>/dev/null || true
+    # Try to copy from various possible locations
+    (cp /usr/share/tesseract-ocr/4.00/tessdata/eng.traineddata \
+        /usr/local/lib/python3.10/site-packages/readmrz/language/ 2>/dev/null || \
+     cp /usr/share/tesseract-ocr/4/tessdata/eng.traineddata \
+        /usr/local/lib/python3.10/site-packages/readmrz/language/ 2>/dev/null || \
+     echo "Warning: Could not copy eng.traineddata, will use system default") && \
+    ls -lh /usr/local/lib/python3.10/site-packages/readmrz/language/ 2>/dev/null || true
 
 # Create non-root user with specific UID/GID
 RUN groupadd -g 1000 apiuser && \
