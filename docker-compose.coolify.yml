@@ -102,8 +102,20 @@ services:
     image: ${IMAGE_NAME:-idyntra/id-verification-api}:${VERSION:-2.0.0}
     restart: unless-stopped
     labels:
+      # Coolify Management
       - "coolify.managed=true"
       - "coolify.port=8000"
+      
+      # Traefik Configuration
+      - "traefik.enable=true"
+      - "traefik.http.routers.api-idyntra.rule=Host(`api.idyntra.space`)"
+      - "traefik.http.routers.api-idyntra.entrypoints=websecure"
+      - "traefik.http.routers.api-idyntra.tls.certresolver=letsencrypt"
+      - "traefik.http.services.api-idyntra.loadbalancer.server.port=8000"
+      
+      # Host Header Middleware Fix (prevents gateway timeout)
+      - "traefik.http.middlewares.api-host.headers.customrequestheaders.Host=api.idyntra.space"
+      - "traefik.http.routers.api-idyntra.middlewares=api-host"
     environment:
       # Application
       APP_NAME: ${APP_NAME:-ID Verification API}
