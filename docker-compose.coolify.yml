@@ -158,9 +158,8 @@ services:
       - model_cache:/root/.cache:rw
       - api_logs:/app/logs:rw
       - api_temp:/app/temp:rw
-    # Coolify needs explicit port mapping or expose
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     depends_on:
       postgres:
         condition: service_healthy
