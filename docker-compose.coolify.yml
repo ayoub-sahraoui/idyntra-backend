@@ -106,27 +106,35 @@ services:
       - "coolify.managed=true"
       - "coolify.port=8000"
       
-      # Traefik Routing Configuration
+      # Traefik Routing Configuration (Coolify-compatible)
       - "traefik.enable=true"
       - "traefik.http.routers.api-idyntra.rule=Host(`api.idyntra.space`)"
       - "traefik.http.routers.api-idyntra.entrypoints=websecure"
       - "traefik.http.routers.api-idyntra.tls=true"
       - "traefik.http.routers.api-idyntra.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.api-idyntra.middlewares=api-timeouts@file,api-keepalive@file"
+      
+      # Service Configuration
       - "traefik.http.services.api-idyntra.loadbalancer.server.port=8000"
+      - "traefik.http.services.api-idyntra.loadbalancer.server.scheme=http"
       
-      # Traefik v3 Timeout Configuration (5 minutes for slow operations)
-      - "traefik.http.middlewares.api-timeouts.transport.respondingtimeouts.readtimeout=300s"
-      - "traefik.http.middlewares.api-timeouts.transport.respondingtimeouts.writetimeout=300s"
-      - "traefik.http.middlewares.api-timeouts.transport.respondingtimeouts.idletimeout=300s"
+      # Health Check Configuration (use /api/v1/health endpoint)
+      - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.path=/api/v1/health"
+      - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.interval=30s"
+      - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.timeout=10s"
+      - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.scheme=http"
       
-      # Keep-Alive & Health Check Configuration (prevents idle backend death)
-      - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.path=/health"
-      - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.interval=10s"
-      - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.timeout=3s"
-      - "traefik.http.services.api-idyntra.loadbalancer.sticky=true"
-      - "traefik.http.middlewares.api-keepalive.headers.customrequestheaders.Connection=keep-alive"
-      - "traefik.http.middlewares.api-keepalive.headers.customresponseheaders.Connection=keep-alive"
+      # Middleware Configuration (inline, not @file)
+      - "traefik.http.routers.api-idyntra.middlewares=api-headers"
+      
+      # Headers Middleware (for keep-alive and timeouts)
+      - "traefik.http.middlewares.api-headers.headers.customrequestheaders.Connection=keep-alive"
+      - "traefik.http.middlewares.api-headers.headers.customresponseheaders.Connection=keep-alive"
+      
+      # Sticky Sessions (for consistent routing)
+      - "traefik.http.services.api-idyntra.loadbalancer.sticky.cookie=true"
+      - "traefik.http.services.api-idyntra.loadbalancer.sticky.cookie.name=api_sticky"
+      - "traefik.http.services.api-idyntra.loadbalancer.sticky.cookie.httpOnly=true"
+      - "traefik.http.services.api-idyntra.loadbalancer.sticky.cookie.secure=true"
     environment:
       # Application
       APP_NAME: ${APP_NAME:-ID Verification API}
@@ -183,6 +191,8 @@ services:
       - api_temp:/app/temp:rw
     expose:
       - "8000"
+    ports:
+      - "8000"  # Expose for Coolify/Traefik discovery
     depends_on:
       postgres:
         condition: service_healthy
@@ -190,6 +200,7 @@ services:
         condition: service_healthy
     networks:
       - backend
+      - default  # Connect to default network for Traefik access
     healthcheck:
       test: ["CMD", "/app/healthcheck.sh"]
       interval: 30s
