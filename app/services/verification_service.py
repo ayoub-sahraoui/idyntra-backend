@@ -23,6 +23,8 @@ class VerificationService:
         face_matcher,
         doc_checker,
         deepfake_detector,
+        similarity_detector,
+        document_structure_detector,
         config,
         logger
     ):
@@ -30,6 +32,8 @@ class VerificationService:
         self.face_matcher = face_matcher
         self.doc_checker = doc_checker
         self.deepfake_detector = deepfake_detector
+        self.similarity_detector = similarity_detector
+        self.document_structure_detector = document_structure_detector
         self.config = config
         self.logger = logger
 
@@ -48,8 +52,64 @@ class VerificationService:
 
         self.logger.info("Starting verification pipeline")
 
-        # Run independent checks in parallel
+        # CRITICAL: Check if same image is used for both (fraud detection)
+        self.logger.info("Checking for image similarity (duplicate detection)...")
+        similarity_check = await self._run_similarity_check(id_document, selfie)
+        
+        if similarity_check.get('is_duplicate', False):
+            self.logger.warning("⚠️ FRAUD ALERT: Same image used for document and selfie!")
+            return {
+                'status': VerificationStatus.REJECTED.value,
+                'overall_confidence': 0.0,
+                'message': '❌ Fraud detected: Same image used for both document and selfie',
+                'similarity_check': similarity_check,
+                'face_match': {'matched': False, 'confidence': 0.0, 'error': 'Duplicate image detected'},
+                'liveness_check': {'is_live': False, 'error': 'Duplicate image detected'},
+                'deepfake_check': {'is_real': False, 'error': 'Duplicate image detected'},
+                'document_authenticity': {'is_authentic': False, 'error': 'Duplicate image detected'}
+            }
+        
+        # Check if document image actually contains a document
+        self.logger.info("Validating document structure...")
+        doc_structure_check = await self._run_document_structure_check(id_document)
+        
+        if not doc_structure_check.get('has_document', False):
+            self.logger.warning("⚠️ Document validation failed: No document structure detected")
+            return {
+                'status': VerificationStatus.REJECTED.value,
+                'overall_confidence': 0.0,
+                'message': '❌ Invalid document: Image does not contain a proper identity document',
+                'document_structure': doc_structure_check,
+                'similarity_check': similarity_check,
+                'face_match': {'matched': False, 'confidence': 0.0, 'error': 'No document detected'},
+                'liveness_check': {'is_live': False, 'error': 'No document detected'},
+                'deepfake_check': {'is_real': False, 'error': 'No document detected'},
+                'document_authenticity': {'is_authentic': False, 'error': 'No document detected'}
+            }
+        
+        # Check if document is just a close-up face
+        face_only_check = await self._check_if_just_face(id_document)
+        if face_only_check.get('is_just_face', False):
+            self.logger.warning("⚠️ Document is just a face photo, not a proper document")
+            return {
+                'status': VerificationStatus.REJECTED.value,
+                'overall_confidence': 0.0,
+                'message': '❌ Invalid document: Please provide a full identity document, not just a face photo',
+                'document_structure': doc_structure_check,
+                'face_only_check': face_only_check,
+                'similarity_check': similarity_check,
+                'face_match': {'matched': False, 'confidence': 0.0, 'error': 'Document is just a face'},
+                'liveness_check': {'is_live': False, 'error': 'Document is just a face'},
+                'deepfake_check': {'is_real': False, 'error': 'Document is just a face'},
+                'document_authenticity': {'is_authentic': False, 'error': 'Document is just a face'}
+            }
+
+        # Run independent checks
         results = await self._run_parallel_checks(id_document, selfie)
+        
+        # Add pre-checks to results
+        results['similarity_check'] = similarity_check
+        results['document_structure'] = doc_structure_check
 
         # Make final decision
         decision = self._make_decision(results)
@@ -184,4 +244,32 @@ class VerificationService:
             self.face_matcher.match_faces,
             id_image,
             selfie_image
+        )
+    
+    async def _run_similarity_check(self, image1, image2):
+        """Check if two images are too similar (duplicate detection)"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            self.executor,
+            self.similarity_detector.are_images_too_similar,
+            image1,
+            image2
+        )
+    
+    async def _run_document_structure_check(self, image):
+        """Check if image contains a proper document structure"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            self.executor,
+            self.document_structure_detector.detect_document_structure,
+            image
+        )
+    
+    async def _check_if_just_face(self, image):
+        """Check if document image is just a close-up face"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            self.executor,
+            self.document_structure_detector.is_just_a_face,
+            image
         )

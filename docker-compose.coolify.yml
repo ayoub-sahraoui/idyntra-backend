@@ -136,7 +136,7 @@ services:
       # Server
       HOST: 0.0.0.0
       PORT: 8000
-      WORKERS: 2  # Two workers prevent idle death while fitting in memory limits
+      WORKERS: 1
       
       # Database
       DATABASE_URL: postgresql://${POSTGRES_USER:-idv_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-idverification}

@@ -5,6 +5,8 @@ from app.core.face_matching import FaceMatcher
 from app.core.document_auth import DocumentAuthenticator
 from app.core.deepfake import DeepfakeDetector
 from app.core.mrz_extraction import MRZExtractor
+from app.core.image_similarity import ImageSimilarityDetector
+from app.core.document_detection import DocumentStructureDetector
 from app.services.verification_service import VerificationService
 import logging
 
@@ -62,6 +64,21 @@ def get_mrz_extractor() -> MRZExtractor:
 
 
 @lru_cache()
+def get_image_similarity_detector() -> ImageSimilarityDetector:
+    """Get image similarity detector instance"""
+    settings = get_settings()
+    # Use 0.95 threshold - images must be 95%+ similar to be considered duplicates
+    similarity_threshold = getattr(settings, 'IMAGE_SIMILARITY_THRESHOLD', 0.95)
+    return ImageSimilarityDetector(similarity_threshold=similarity_threshold)
+
+
+@lru_cache()
+def get_document_structure_detector() -> DocumentStructureDetector:
+    """Get document structure detector instance"""
+    return DocumentStructureDetector()
+
+
+@lru_cache()
 def get_verification_service() -> VerificationService:
     """Get verification service with all dependencies"""
     return VerificationService(
@@ -69,6 +86,8 @@ def get_verification_service() -> VerificationService:
         face_matcher=get_face_matcher(),
         doc_checker=get_document_authenticator(),
         deepfake_detector=get_deepfake_detector(),
+        similarity_detector=get_image_similarity_detector(),
+        document_structure_detector=get_document_structure_detector(),
         config=get_settings(),
         logger=get_logger()
     )
