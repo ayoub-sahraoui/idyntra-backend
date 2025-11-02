@@ -110,8 +110,23 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.api-idyntra.rule=Host(`api.idyntra.space`)"
       - "traefik.http.routers.api-idyntra.entrypoints=websecure"
+      - "traefik.http.routers.api-idyntra.tls=true"
       - "traefik.http.routers.api-idyntra.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.api-idyntra.middlewares=api-timeouts@file,api-keepalive@file"
       - "traefik.http.services.api-idyntra.loadbalancer.server.port=8000"
+      
+      # Traefik v3 Timeout Configuration (5 minutes for slow operations)
+      - "traefik.http.middlewares.api-timeouts.transport.respondingtimeouts.readtimeout=300s"
+      - "traefik.http.middlewares.api-timeouts.transport.respondingtimeouts.writetimeout=300s"
+      - "traefik.http.middlewares.api-timeouts.transport.respondingtimeouts.idletimeout=300s"
+      
+      # Keep-Alive & Health Check Configuration (prevents idle backend death)
+      - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.path=/health"
+      - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.interval=10s"
+      - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.timeout=3s"
+      - "traefik.http.services.api-idyntra.loadbalancer.sticky=true"
+      - "traefik.http.middlewares.api-keepalive.headers.customrequestheaders.Connection=keep-alive"
+      - "traefik.http.middlewares.api-keepalive.headers.customresponseheaders.Connection=keep-alive"
     environment:
       # Application
       APP_NAME: ${APP_NAME:-ID Verification API}
@@ -121,7 +136,7 @@ services:
       # Server
       HOST: 0.0.0.0
       PORT: 8000
-      WORKERS: 1  # Force single worker to fit in memory limits
+      WORKERS: 2  # Two workers prevent idle death while fitting in memory limits
       
       # Database
       DATABASE_URL: postgresql://${POSTGRES_USER:-idv_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-idverification}
@@ -185,10 +200,10 @@ services:
       resources:
         limits:
           cpus: '4'
-          memory: 6G
+          memory: 4G
         reservations:
           cpus: '2'
-          memory: 3G
+          memory: 2G
     logging:
       driver: "json-file"
       options:
