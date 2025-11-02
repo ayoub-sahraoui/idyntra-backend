@@ -101,40 +101,6 @@ services:
         VERSION: ${VERSION:-2.0.0}
     image: ${IMAGE_NAME:-idyntra/id-verification-api}:${VERSION:-2.0.0}
     restart: unless-stopped
-    labels:
-      # Coolify Management
-      - "coolify.managed=true"
-      - "coolify.port=8000"
-      
-      # Traefik Routing Configuration (Coolify-compatible)
-      - "traefik.enable=true"
-      - "traefik.http.routers.api-idyntra.rule=Host(`api.idyntra.space`)"
-      - "traefik.http.routers.api-idyntra.entrypoints=websecure"
-      - "traefik.http.routers.api-idyntra.tls=true"
-      - "traefik.http.routers.api-idyntra.tls.certresolver=letsencrypt"
-      
-      # Service Configuration
-      - "traefik.http.services.api-idyntra.loadbalancer.server.port=8000"
-      - "traefik.http.services.api-idyntra.loadbalancer.server.scheme=http"
-      
-      # Health Check Configuration (use /health endpoint - fast, no ML model loading)
-      - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.path=/health"
-      - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.interval=30s"
-      - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.timeout=10s"
-      - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.scheme=http"
-      
-      # Middleware Configuration (inline, not @file)
-      - "traefik.http.routers.api-idyntra.middlewares=api-headers"
-      
-      # Headers Middleware (for keep-alive and timeouts)
-      - "traefik.http.middlewares.api-headers.headers.customrequestheaders.Connection=keep-alive"
-      - "traefik.http.middlewares.api-headers.headers.customresponseheaders.Connection=keep-alive"
-      
-      # Sticky Sessions (for consistent routing)
-      - "traefik.http.services.api-idyntra.loadbalancer.sticky.cookie=true"
-      - "traefik.http.services.api-idyntra.loadbalancer.sticky.cookie.name=api_sticky"
-      - "traefik.http.services.api-idyntra.loadbalancer.sticky.cookie.httpOnly=true"
-      - "traefik.http.services.api-idyntra.loadbalancer.sticky.cookie.secure=true"
     environment:
       # Application
       APP_NAME: ${APP_NAME:-ID Verification API}
