@@ -49,16 +49,17 @@ The "no available server" error in Coolify with Traefik typically means:
 
 **AFTER:**
 ```yaml
-- "traefik.http.services.api-idyntra.loadbalancer.healthcheck.path=/api/v1/health"
+- "traefik.http.services.api-idyntra.loadbalancer.healthcheck.path=/health"
 - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.scheme=http"
 - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.interval=30s"
 - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.timeout=10s"
 ```
 
 **Why**:
-- Your API health endpoint is at `/api/v1/health`, not `/health`
+- Your API health endpoint is at `/health` (not `/api/v1/health`)
+- The `/health` endpoint is fast and doesn't load ML models
 - Must specify `scheme=http` for internal container communication
-- Increased timeout to allow ML models to load
+- 30s interval is sufficient for basic health checks
 
 ### 3. Added Network Configuration
 
@@ -113,9 +114,12 @@ docker-compose logs api --tail=50 -f
 docker ps | grep api
 
 # Test health endpoint from inside container network
-docker exec <api-container-name> curl -v http://localhost:8000/api/v1/health
+docker exec <api-container-name> curl -v http://localhost:8000/health
 
-# Should return: {"status": "healthy", ...}
+# Should return: {"status": "healthy", "version": "2.0.0", ...}
+
+# Also test detailed health (loads ML models)
+docker exec <api-container-name> curl -v http://localhost:8000/health/detailed
 ```
 
 ### 3. Check Traefik Can Reach Container
@@ -135,9 +139,10 @@ docker logs <traefik-container> --tail=100 | grep idyntra
 ### 4. Test From Outside
 ```bash
 # Test health endpoint externally
-curl -v https://api.idyntra.space/api/v1/health
+curl -v https://api.idyntra.space/health
 
-# Should return 200 OK with JSON
+# Should return 200 OK with JSON:
+# {"status":"healthy","version":"2.0.0",...}
 ```
 
 ### 5. Test Docs Endpoint
@@ -210,19 +215,22 @@ docker-compose up -d --build
 
 ### 3. Verify Health
 ```bash
-# Wait 60 seconds for ML models to load
-sleep 60
+# Wait 30 seconds for container to start
+sleep 30
 
-# Check health
-curl https://api.idyntra.space/api/v1/health
+# Check basic health (fast, no ML loading)
+curl https://api.idyntra.space/health
 
 # Should return:
 # {
 #   "status": "healthy",
 #   "version": "2.0.0",
-#   "timestamp": "...",
-#   ...
+#   "device": "cpu",
+#   "timestamp": "..."
 # }
+
+# Check detailed health (loads ML models)
+curl https://api.idyntra.space/health/detailed
 ```
 
 ### 4. Test API
@@ -275,7 +283,7 @@ docker-compose logs api --tail=100
 **Solution**: 
 1. Verify health endpoint works:
 ```bash
-docker exec <api-container> curl http://localhost:8000/api/v1/health
+docker exec <api-container> curl http://localhost:8000/health
 ```
 
 2. If fails, check if app is running:
@@ -310,11 +318,11 @@ After deploying fixes, verify:
 - [ ] Container is running: `docker ps | grep api`
 - [ ] Container is healthy: `docker inspect <api-container> | grep -A 5 Health`
 - [ ] ML models loaded: Check logs for "ALL COMPONENTS INITIALIZED"
-- [ ] Health endpoint works internally: `docker exec <api-container> curl localhost:8000/api/v1/health`
+- [ ] Health endpoint works internally: `docker exec <api-container> curl localhost:8000/health`
 - [ ] Container is on both networks: `docker inspect <api-container> | grep -A 10 Networks`
 - [ ] Traefik labels are correct: `docker inspect <api-container> | jq '.[0].Config.Labels'`
 - [ ] Traefik can reach service: Check Traefik logs
-- [ ] Health endpoint works externally: `curl https://api.idyntra.space/api/v1/health`
+- [ ] Health endpoint works externally: `curl https://api.idyntra.space/health`
 - [ ] Docs page loads: `curl https://api.idyntra.space/docs`
 - [ ] API responds: Test /verify endpoint
 

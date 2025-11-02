@@ -117,8 +117,8 @@ services:
       - "traefik.http.services.api-idyntra.loadbalancer.server.port=8000"
       - "traefik.http.services.api-idyntra.loadbalancer.server.scheme=http"
       
-      # Health Check Configuration (use /api/v1/health endpoint)
-      - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.path=/api/v1/health"
+      # Health Check Configuration (use /health endpoint - fast, no ML model loading)
+      - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.path=/health"
       - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.interval=30s"
       - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.timeout=10s"
       - "traefik.http.services.api-idyntra.loadbalancer.healthcheck.scheme=http"
