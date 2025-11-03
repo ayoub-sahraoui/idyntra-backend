@@ -31,10 +31,11 @@ class LivenessCheckResponse(BaseModel):
     }
     
     is_live: bool = Field(..., description="Whether the image is determined to be from a live person")
-    liveness_score: float = Field(..., ge=0.0, le=1.0, description="Liveness score (0-1)")
-    checks_passed: str = Field(..., description="Number of checks passed (e.g., '4/6')")
-    confidence: str = Field(..., description="Confidence level: low, medium, or high")
-    checks: Dict[str, Any] = Field(..., description="Detailed results for each liveness check")
+    liveness_score: Optional[float] = Field(None, ge=0.0, le=1.0, description="Liveness score (0-1)")
+    checks_passed: Optional[str] = Field(None, description="Number of checks passed (e.g., '4/6')")
+    confidence: Optional[str] = Field(None, description="Confidence level: low, medium, or high")
+    checks: Optional[Dict[str, Any]] = Field(None, description="Detailed results for each liveness check")
+    error: Optional[str] = Field(None, description="Error message if check failed")
 
 
 class FaceMatchResponse(BaseModel):
@@ -51,8 +52,9 @@ class FaceMatchResponse(BaseModel):
     
     matched: bool = Field(..., description="Whether faces match between document and selfie")
     confidence: float = Field(..., ge=0.0, le=100.0, description="Match confidence percentage (0-100)")
-    distance: float = Field(..., description="Face distance metric (lower = more similar)")
-    strategy: str = Field(..., description="Matching strategy used (e.g., 'face_recognition')")
+    distance: Optional[float] = Field(None, description="Face distance metric (lower = more similar)")
+    strategy: Optional[str] = Field(None, description="Matching strategy used (e.g., 'face_recognition')")
+    error: Optional[str] = Field(None, description="Error message if check failed")
 
 
 class DocumentAuthResponse(BaseModel):
@@ -74,9 +76,10 @@ class DocumentAuthResponse(BaseModel):
     }
     
     is_authentic: bool = Field(..., description="Whether the document appears authentic")
-    authenticity_score: float = Field(..., ge=0.0, le=100.0, description="Authenticity score percentage (0-100)")
-    checks_passed: str = Field(..., description="Number of authenticity checks passed (e.g., '1/1')")
-    checks: Dict[str, Any] = Field(..., description="Detailed results for each authenticity check")
+    authenticity_score: Optional[float] = Field(None, ge=0.0, le=100.0, description="Authenticity score percentage (0-100)")
+    checks_passed: Optional[str] = Field(None, description="Number of authenticity checks passed (e.g., '1/1')")
+    checks: Optional[Dict[str, Any]] = Field(None, description="Detailed results for each authenticity check")
+    error: Optional[str] = Field(None, description="Error message if check failed")
 
 
 class DeepfakeCheckResponse(BaseModel):
@@ -93,9 +96,10 @@ class DeepfakeCheckResponse(BaseModel):
     }
     
     is_real: bool = Field(..., description="Whether the image is determined to be real (not a deepfake)")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score (0-1)")
-    label: str = Field(..., description="Classification label: 'Real' or 'Fake'")
-    model_available: bool = Field(..., description="Whether the deepfake detection model is loaded")
+    confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence score (0-1)")
+    label: Optional[str] = Field(None, description="Classification label: 'Real' or 'Fake'")
+    model_available: Optional[bool] = Field(None, description="Whether the deepfake detection model is loaded")
+    error: Optional[str] = Field(None, description="Error message if check failed")
 
 
 class StructuredDataResponse(BaseModel):

@@ -63,10 +63,35 @@ class VerificationService:
                 'overall_confidence': 0.0,
                 'message': '❌ Fraud detected: Same image used for both document and selfie',
                 'similarity_check': similarity_check,
-                'face_match': {'matched': False, 'confidence': 0.0, 'error': 'Duplicate image detected'},
-                'liveness_check': {'is_live': False, 'error': 'Duplicate image detected'},
-                'deepfake_check': {'is_real': False, 'error': 'Duplicate image detected'},
-                'document_authenticity': {'is_authentic': False, 'error': 'Duplicate image detected'}
+                'face_match': {
+                    'matched': False, 
+                    'confidence': 0.0, 
+                    'distance': None,
+                    'strategy': None,
+                    'error': 'Duplicate image detected'
+                },
+                'liveness_check': {
+                    'is_live': False, 
+                    'liveness_score': None,
+                    'checks_passed': None,
+                    'confidence': None,
+                    'checks': None,
+                    'error': 'Duplicate image detected'
+                },
+                'deepfake_check': {
+                    'is_real': False, 
+                    'confidence': None,
+                    'label': None,
+                    'model_available': None,
+                    'error': 'Duplicate image detected'
+                },
+                'document_authenticity': {
+                    'is_authentic': False, 
+                    'authenticity_score': None,
+                    'checks_passed': None,
+                    'checks': None,
+                    'error': 'Duplicate image detected'
+                }
             }
         
         # Check if document image actually contains a document
@@ -81,10 +106,35 @@ class VerificationService:
                 'message': '❌ Invalid document: Image does not contain a proper identity document',
                 'document_structure': doc_structure_check,
                 'similarity_check': similarity_check,
-                'face_match': {'matched': False, 'confidence': 0.0, 'error': 'No document detected'},
-                'liveness_check': {'is_live': False, 'error': 'No document detected'},
-                'deepfake_check': {'is_real': False, 'error': 'No document detected'},
-                'document_authenticity': {'is_authentic': False, 'error': 'No document detected'}
+                'face_match': {
+                    'matched': False, 
+                    'confidence': 0.0, 
+                    'distance': None,
+                    'strategy': None,
+                    'error': 'No document detected'
+                },
+                'liveness_check': {
+                    'is_live': False, 
+                    'liveness_score': None,
+                    'checks_passed': None,
+                    'confidence': None,
+                    'checks': None,
+                    'error': 'No document detected'
+                },
+                'deepfake_check': {
+                    'is_real': False, 
+                    'confidence': None,
+                    'label': None,
+                    'model_available': None,
+                    'error': 'No document detected'
+                },
+                'document_authenticity': {
+                    'is_authentic': False, 
+                    'authenticity_score': None,
+                    'checks_passed': None,
+                    'checks': None,
+                    'error': 'No document detected'
+                }
             }
         
         # Check if document is just a close-up face
@@ -98,10 +148,35 @@ class VerificationService:
                 'document_structure': doc_structure_check,
                 'face_only_check': face_only_check,
                 'similarity_check': similarity_check,
-                'face_match': {'matched': False, 'confidence': 0.0, 'error': 'Document is just a face'},
-                'liveness_check': {'is_live': False, 'error': 'Document is just a face'},
-                'deepfake_check': {'is_real': False, 'error': 'Document is just a face'},
-                'document_authenticity': {'is_authentic': False, 'error': 'Document is just a face'}
+                'face_match': {
+                    'matched': False, 
+                    'confidence': 0.0, 
+                    'distance': None,
+                    'strategy': None,
+                    'error': 'Document is just a face'
+                },
+                'liveness_check': {
+                    'is_live': False, 
+                    'liveness_score': None,
+                    'checks_passed': None,
+                    'confidence': None,
+                    'checks': None,
+                    'error': 'Document is just a face'
+                },
+                'deepfake_check': {
+                    'is_real': False, 
+                    'confidence': None,
+                    'label': None,
+                    'model_available': None,
+                    'error': 'Document is just a face'
+                },
+                'document_authenticity': {
+                    'is_authentic': False, 
+                    'authenticity_score': None,
+                    'checks_passed': None,
+                    'checks': None,
+                    'error': 'Document is just a face'
+                }
             }
 
         # Run independent checks
@@ -137,7 +212,14 @@ class VerificationService:
             self.logger.info("✓ Liveness check completed")
         except Exception as e:
             self.logger.exception(f"Liveness check failed: {e}")
-            results['liveness_check'] = {'passed': False, 'error': str(e)}
+            results['liveness_check'] = {
+                'is_live': False, 
+                'liveness_score': None,
+                'checks_passed': None,
+                'confidence': None,
+                'checks': None,
+                'error': str(e)
+            }
         
         try:
             self.logger.info("Running deepfake check...")
@@ -145,7 +227,13 @@ class VerificationService:
             self.logger.info("✓ Deepfake check completed")
         except Exception as e:
             self.logger.exception(f"Deepfake check failed: {e}")
-            results['deepfake_check'] = {'passed': False, 'error': str(e)}
+            results['deepfake_check'] = {
+                'is_real': False, 
+                'confidence': None,
+                'label': None,
+                'model_available': None,
+                'error': str(e)
+            }
         
         try:
             self.logger.info("Running document authenticity check...")
@@ -153,7 +241,13 @@ class VerificationService:
             self.logger.info("✓ Document authenticity check completed")
         except Exception as e:
             self.logger.exception(f"Document authenticity check failed: {e}")
-            results['document_authenticity'] = {'passed': False, 'error': str(e)}
+            results['document_authenticity'] = {
+                'is_authentic': False, 
+                'authenticity_score': None,
+                'checks_passed': None,
+                'checks': None,
+                'error': str(e)
+            }
         
         try:
             self.logger.info("Running face match...")
@@ -161,7 +255,13 @@ class VerificationService:
             self.logger.info("✓ Face match completed")
         except Exception as e:
             self.logger.exception(f"Face match failed: {e}")
-            results['face_match'] = {'passed': False, 'error': str(e)}
+            results['face_match'] = {
+                'matched': False, 
+                'confidence': 0.0, 
+                'distance': None,
+                'strategy': None,
+                'error': str(e)
+            }
 
         return results
 
