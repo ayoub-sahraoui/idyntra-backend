@@ -293,12 +293,12 @@ class VerificationService:
         )
 
         # Decision logic (adjusted thresholds for better real-world acceptance)
-        # >= 70: High confidence, auto-approve (lowered from 75)
-        # >= 50: Medium confidence, manual review recommended (lowered from 55)
-        # < 50: Low confidence, reject
+        # >= 70: High confidence, auto-approve
+        # >= 45: Medium confidence, manual review recommended (lowered from 50)
+        # < 45: Low confidence, reject
         if overall >= 70:
             status = VerificationStatus.APPROVED
-        elif overall >= 50:
+        elif overall >= 45:
             status = VerificationStatus.MANUAL_REVIEW
         else:
             status = VerificationStatus.REJECTED
