@@ -291,13 +291,13 @@ class VerificationService:
             deepfake_conf * 0.20         # 20% - Deepfake detection
         )
 
-        # Decision logic (adjusted thresholds)
-        # >= 75: High confidence, auto-approve
-        # >= 55: Medium confidence, manual review recommended
-        # < 55: Low confidence, reject
-        if overall >= 75:
+        # Decision logic (adjusted thresholds for better real-world acceptance)
+        # >= 70: High confidence, auto-approve (lowered from 75)
+        # >= 50: Medium confidence, manual review recommended (lowered from 55)
+        # < 50: Low confidence, reject
+        if overall >= 70:
             status = VerificationStatus.APPROVED
-        elif overall >= 55:
+        elif overall >= 50:
             status = VerificationStatus.MANUAL_REVIEW
         else:
             status = VerificationStatus.REJECTED

@@ -11,7 +11,7 @@ class DocumentStructureDetector:
     """Detect if an image contains a structured identity document"""
     
     def __init__(self):
-        self.min_confidence = 0.40  # Lowered from 60% to 40% for better real-world acceptance
+        self.min_confidence = 0.30  # Lowered to 30% for better real-world acceptance
     
     def detect_document_structure(self, image: np.ndarray) -> Dict:
         """
