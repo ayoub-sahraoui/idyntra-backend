@@ -282,14 +282,14 @@ class VerificationService:
         auth_score = results.get('document_authenticity', {}).get('authenticity_score', 0)
         deepfake_conf = results.get('deepfake_check', {}).get('confidence', 0.5) * 100
 
-        # Weighted average (adjusted weights - reduced deepfake impact due to low accuracy)
+        # Weighted average (deepfake detector disabled due to poor accuracy)
         # Face matching is most important and reliable
-        # Deepfake detector reduced to 5% due to observed low accuracy
+        # Deepfake detector has shown ~50% accuracy (worse than random), so we ignore it
         overall = (
-            liveness_score * 0.25 +      # 25% - Liveness detection (increased)
-            face_confidence * 0.55 +     # 55% - Face matching (increased - most reliable)
-            auth_score * 0.15 +          # 15% - Document authenticity (increased)
-            deepfake_conf * 0.05         # 5% - Deepfake detection (reduced - unreliable model)
+            liveness_score * 0.30 +      # 30% - Liveness detection
+            face_confidence * 0.50 +     # 50% - Face matching (most reliable)
+            auth_score * 0.20 +          # 20% - Document authenticity
+            deepfake_conf * 0.00         # 0% - Deepfake detection (DISABLED - unreliable)
         )
 
         # Decision logic (adjusted thresholds for better real-world acceptance)
