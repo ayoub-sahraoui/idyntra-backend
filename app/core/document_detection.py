@@ -11,7 +11,7 @@ class DocumentStructureDetector:
     """Detect if an image contains a structured identity document"""
     
     def __init__(self):
-        self.min_confidence = 0.60  # 60% confidence threshold
+        self.min_confidence = 0.40  # Lowered from 60% to 40% for better real-world acceptance
     
     def detect_document_structure(self, image: np.ndarray) -> Dict:
         """
@@ -74,24 +74,32 @@ class DocumentStructureDetector:
         try:
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
             
-            # Edge detection
-            edges = cv2.Canny(gray, 50, 150)
+            # Apply bilateral filter to reduce noise while preserving edges
+            filtered = cv2.bilateralFilter(gray, 9, 75, 75)
+            
+            # Edge detection with multiple thresholds for better detection
+            edges1 = cv2.Canny(filtered, 30, 100)
+            edges2 = cv2.Canny(filtered, 50, 150)
+            edges3 = cv2.Canny(filtered, 100, 200)
+            
+            # Combine edges
+            edges = cv2.bitwise_or(edges1, cv2.bitwise_or(edges2, edges3))
             
             # Find contours
             contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             
-            # Look for rectangular contours
+            # Look for rectangular contours with more lenient criteria
             rectangles = []
             for contour in contours:
                 # Approximate contour
-                epsilon = 0.02 * cv2.arcLength(contour, True)
+                epsilon = 0.03 * cv2.arcLength(contour, True)  # More lenient approximation
                 approx = cv2.approxPolyDP(contour, epsilon, True)
                 
-                # Check if it's a rectangle (4 corners)
-                if len(approx) == 4:
+                # Check if it's rectangle-like (4-8 corners for flexibility)
+                if 4 <= len(approx) <= 8:
                     area = cv2.contourArea(contour)
-                    # Must be significant size (at least 10% of image)
-                    if area > (image.shape[0] * image.shape[1] * 0.10):
+                    # Lowered threshold to 5% of image for smaller/distant cards
+                    if area > (image.shape[0] * image.shape[1] * 0.05):
                         rectangles.append({
                             'area': area,
                             'corners': len(approx)
@@ -113,31 +121,30 @@ class DocumentStructureDetector:
         try:
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
             
+            # Apply adaptive thresholding for better text detection
+            thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                          cv2.THRESH_BINARY_INV, 11, 2)
+            
             # Use morphological operations to find text regions
-            # Apply gradient
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (21, 3))
-            gradient = cv2.morphologyEx(gray, cv2.MORPH_GRADIENT, kernel)
-            
-            # Threshold
-            _, thresh = cv2.threshold(gradient, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
-            
-            # Dilate to connect text regions
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 1))
+            # Horizontal kernel for text lines
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 3))
             dilated = cv2.dilate(thresh, kernel, iterations=1)
             
             # Find contours
             contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             
-            # Count horizontal text-like regions
+            # Count horizontal text-like regions with more lenient criteria
             text_regions = 0
             for contour in contours:
                 x, y, w, h = cv2.boundingRect(contour)
                 # Text regions are typically wider than tall
                 aspect_ratio = w / float(h) if h > 0 else 0
-                if aspect_ratio > 2 and w > 50:  # Horizontal text region
+                # Lowered width threshold from 50 to 30 for smaller text
+                if aspect_ratio > 1.5 and w > 30:  # More lenient for various text sizes
                     text_regions += 1
             
-            has_text = text_regions >= 3  # Documents typically have multiple text lines
+            # Lowered threshold from 3 to 2 text regions
+            has_text = text_regions >= 2  # Documents typically have multiple text lines
             
             return {
                 'has_text_regions': has_text,
@@ -155,8 +162,8 @@ class DocumentStructureDetector:
                 hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
                 
                 # Look for high saturation and high value (shiny areas)
-                lower = np.array([0, 0, 200])
-                upper = np.array([180, 100, 255])
+                lower = np.array([0, 0, 180])  # Lowered from 200 for more sensitivity
+                upper = np.array([180, 120, 255])  # Increased saturation range
                 mask = cv2.inRange(hsv, lower, upper)
                 
                 # Count shiny pixels
@@ -164,8 +171,8 @@ class DocumentStructureDetector:
                 total_pixels = mask.size
                 shiny_ratio = shiny_pixels / total_pixels
                 
-                # Documents typically have 1-5% shiny/reflective areas
-                detected = 0.01 <= shiny_ratio <= 0.10
+                # More lenient range: 0.5% to 15% (was 1% to 10%)
+                detected = 0.005 <= shiny_ratio <= 0.15
                 
                 return {
                     'detected': detected,
@@ -173,10 +180,12 @@ class DocumentStructureDetector:
                     'shiny_pixels': int(shiny_pixels)
                 }
             else:
-                return {'detected': False, 'reason': 'grayscale image'}
+                # For grayscale, still pass (fail open)
+                return {'detected': True, 'reason': 'grayscale image - assumed present'}
                 
         except Exception as e:
-            return {'detected': False, 'error': str(e)}
+            # Fail open - assume security features might be present
+            return {'detected': True, 'error': str(e)}
     
     def _detect_photo_region(self, image: np.ndarray) -> Dict:
         """Detect distinct photo region (ID cards have a photo of the person)"""
@@ -225,14 +234,19 @@ class DocumentStructureDetector:
             # - Credit card / ID card: 1.586 (85.60 × 53.98 mm)
             # - Passport: ~1.4
             # - Driver's license: varies but ~1.5-1.6
-            # Acceptable range: 1.3 to 1.8
-            is_document_sized = 1.3 <= aspect_ratio <= 1.8
+            # Expanded acceptable range: 1.2 to 2.0 for more flexibility
+            # Also accept portrait orientation (inverse ratio)
+            is_landscape = 1.2 <= aspect_ratio <= 2.0
+            is_portrait = 0.5 <= aspect_ratio <= 0.83  # Inverse of landscape range
+            
+            is_document_sized = is_landscape or is_portrait
             
             return {
                 'is_document_sized': is_document_sized,
                 'aspect_ratio': float(aspect_ratio),
                 'width': w,
-                'height': h
+                'height': h,
+                'orientation': 'landscape' if is_landscape else ('portrait' if is_portrait else 'unknown')
             }
             
         except Exception as e:

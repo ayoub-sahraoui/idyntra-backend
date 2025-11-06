@@ -98,8 +98,16 @@ class VerificationService:
         self.logger.info("Validating document structure...")
         doc_structure_check = await self._run_document_structure_check(id_document)
         
+        # Log detailed detection results for debugging
+        self.logger.info(f"Document structure detection results: {doc_structure_check}")
+        
         if not doc_structure_check.get('has_document', False):
-            self.logger.warning("⚠️ Document validation failed: No document structure detected")
+            confidence = doc_structure_check.get('confidence', 0)
+            threshold = doc_structure_check.get('threshold_used', 0.60)
+            self.logger.warning(
+                f"⚠️ Document validation failed: No document structure detected "
+                f"(confidence: {confidence:.2f}, threshold: {threshold:.2f})"
+            )
             return {
                 'status': VerificationStatus.REJECTED.value,
                 'overall_confidence': 0.0,
