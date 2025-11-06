@@ -47,14 +47,14 @@ class Settings(BaseSettings):
 
     # Verification Thresholds
     # Liveness Detection
-    LIVENESS_SCORE_MIN: float = 0.55  # Minimum score to pass (55% of checks)
-    LIVENESS_SCORE_HIGH: float = 0.75  # High confidence threshold
-    BLUR_THRESHOLD: float = 80.0  # Lowered for better tolerance (was 100.0)
+    LIVENESS_SCORE_MIN: float = 0.60  # Minimum score to pass (60% of checks)
+    LIVENESS_SCORE_HIGH: float = 0.80  # High confidence threshold
+    BLUR_THRESHOLD: float = 100.0  # Blur detection threshold
 
-    # Face Matching
-    FACE_MATCH_CONFIDENCE_MIN: float = 65.0  # Minimum confidence to consider a match
-    FACE_MATCH_CONFIDENCE_HIGH: float = 80.0  # High confidence threshold
-    FACE_MATCH_TOLERANCE: float = 0.5  # Distance tolerance (lower = stricter)
+    # Face Matching (Tuned for ID-to-selfie matching - photos differ significantly)
+    FACE_MATCH_CONFIDENCE_MIN: float = 40.0  # Minimum confidence (ID photos vs selfies differ)
+    FACE_MATCH_CONFIDENCE_HIGH: float = 85.0  # High confidence threshold
+    FACE_MATCH_TOLERANCE: float = 0.85  # Distance tolerance (higher = more lenient, max ~0.9)
 
     # Document Authenticity
     AUTHENTICITY_SCORE_MIN: float = 50.0  # Minimum authenticity score
